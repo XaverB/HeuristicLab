@@ -9,8 +9,22 @@ using HeuristicLab.Core;
 using HeuristicLab.MainForm;
 using HeuristicLab.PluginInfrastructure.Manager;
 using HeuristicLab.Optimization;
+using Grapevine;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Reflection;
+using System.Text.Json;
+using System.Dynamic;
 
 namespace HeuristicLab.RemoteControl.TestPlugin {
+  [RestResource]
+  public class MyResource {
+    [RestRoute("Get", "/api/test")]
+    public async Task Test(IHttpContext context) {
+      await context.Response.SendResponseAsync("Successfully hit the test route!");
+    }
+  }
+
   /// <summary>
   /// Plugin class for HeuristicLab.Problems.VehicleRouting.Views plugin
   /// </summary>
@@ -26,6 +40,9 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
   [PluginDependency("HeuristicLab.Optimization.Views", "3.3")]
   [PluginDependency("HeuristicLab.Problems.VehicleRouting", "3.4")]
   public class RemoteControlTestPlugin : PluginBase {
+
+    IRestServer server;
+
     public override void OnLoad() {
 
       var types = ApplicationManager.Manager.GetTypes(typeof(IItem));
@@ -59,8 +76,9 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
 
       //var algorithms = ApplicationManager.Manager.GetInstances<IAlgorithm>();
       var problems = ApplicationManager.Manager.GetInstances<IProblem>();
+      Dictionary<string, IProblem> problemsDictionary = problems.ToDictionary(x => x.Name, x => x);
 
-      var algo = (IAlgorithm) item;
+      var algo = (IAlgorithm)item;
       var problem = problems.LastOrDefault();
       algo.Problem = problem;//problems.LastOrDefault();
 
@@ -69,18 +87,71 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       foreach (var parameter in problem.Parameters) {
         Console.WriteLine($"\tParameter: {parameter} ==");
 
-        var parameterTypes =  ApplicationManager.Manager.GetTypes(parameter.GetType());
+        var parameterTypes = ApplicationManager.Manager.GetTypes(parameter.GetType());
         Console.WriteLine($"\t\tInstances:");
         foreach (var paramType in parameterTypes) {
           Console.WriteLine($"\t\t{paramType}");
         }
-        
+
       }
 
       Task.Delay(10000).ContinueWith(e => {
         IView view = MainFormManager.MainForm.ShowContent(algo);
         algo.StartAsync();
       });
+
+
+      server = RestServerBuilder.UseDefaults().Build();
+      //var firewallPolicy = new FirewallPolicy {
+      //  AppExecutablePath = @"D:\FH\HL\HeuristicLab\bin\HeuristicLab 3.3.exe", //Application Executable Path
+      //  Description = "Description of your firewall rule",
+      //  Name = "Heuristic Lab" // Your Application Name
+      //};
+
+      //server.UseFirewallPolicy(firewallPolicy);
+
+      server.Prefixes.Add("http://localhost:8080/");
+      server.Prefixes.Add("http://127.0.0.1:8080/");
+
+      server.AfterStarting += (s) => {
+        // This will produce a weird name in the output like `<Main>b__0_2` or something unless you add a name argument to the route constructor.
+        s.Router.Register(new Route(async (ctx) => {
+
+          dynamic json = new ExpandoObject();
+          json.Name = $"Problem {problem.Name} - {problem.Description}";
+
+          List<String> parameterList = problem.Parameters.Select(x => x.Name).ToList();
+          json.Parameter = parameterList;
+
+          
+          string serializedJson = JsonSerializer.Serialize(json);
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/getProblemParameter"));
+      };
+
+      server.AfterStarting += (s) => {
+        // This will produce a weird name in the output like `<Main>b__0_2` or something unless you add a name argument to the route constructor.
+        s.Router.Register(new Route(async (ctx) => {
+
+          dynamic json = new ExpandoObject();
+          var param = problem.Parameters.LastOrDefault();
+          json.Name = $"Paramemeter {param.Name} - {param.Description}";
+          json.DataType = param.DataType.ToString();
+          json.Value = param.ActualValue.ToString();
+          
+         
+          string serializedJson = JsonSerializer.Serialize(json);
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/getParameterInfo"));
+      };
+
+      server.Start();
+      server.AfterStopping += (e) => { Console.WriteLine("=== === Server stopped === ==="); };
+      Console.WriteLine($"* Server listening on {string.Join(", ", server.Prefixes)}{Environment.NewLine}");
+      //Console.WriteLine("Press enter to stop the server");
+      //Console.ReadLine();
+
+
 
       //MainFormManager.MainForm.ActiveViewChanged += (e, s) => 
       //{
