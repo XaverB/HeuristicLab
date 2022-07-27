@@ -2,14 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace HeuristicLab.RemoteControl.TestPlugin {
   public class TreeNode {
     public string Name { get; set; }
+    [JsonIgnore]
     public object Tag { get; set; }
 
-    public List<TreeNode> Nodes;
+    public List<TreeNode> Nodes { get; set; }
 
     public List<TreeNode> Find(string nameToFind, bool recursive) {
 

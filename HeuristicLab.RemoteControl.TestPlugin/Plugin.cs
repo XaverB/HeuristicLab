@@ -118,6 +118,19 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
         s.Router.Register(new Route(async (ctx) => {
 
           dynamic json = new ExpandoObject();
+          json.Algorithms = rootNode;
+
+
+          string serializedJson = JsonSerializer.Serialize(json);
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/getAlgorithms"));
+      };
+
+      server.AfterStarting += (s) => {
+        // This will produce a weird name in the output like `<Main>b__0_2` or something unless you add a name argument to the route constructor.
+        s.Router.Register(new Route(async (ctx) => {
+
+          dynamic json = new ExpandoObject();
           json.Name = $"Problem {problem.Name} - {problem.Description}";
 
           List<String> parameterList = problem.Parameters.Select(x => x.Name).ToList();
@@ -135,7 +148,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
 
           dynamic json = new ExpandoObject();
           var param = problem.Parameters.LastOrDefault();
-          json.Name = $"Paramemeter {param.Name} - {param.Description}";
+          json.Name = param.Name;
+          json.Description = param.Description;
           json.DataType = param.DataType.ToString();
           json.Value = param.ActualValue.ToString();
           
@@ -143,6 +157,28 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
           string serializedJson = JsonSerializer.Serialize(json);
           await ctx.Response.SendResponseAsync(serializedJson);
         }, "Get", "/getParameterInfo"));
+      };
+
+      server.AfterStarting += (s) => {
+        // This will produce a weird name in the output like `<Main>b__0_2` or something unless you add a name argument to the route constructor.
+        s.Router.Register(new Route(async (ctx) => {
+
+          dynamic json = new ExpandoObject();
+          List<dynamic> jsons = new List<dynamic>();
+          foreach (var param in problem.Parameters) {
+            dynamic jsonInner = new ExpandoObject();
+            jsonInner.Name = param.Name;
+            jsonInner.Description = param.Description;
+            jsonInner.DataType = param.DataType?.ToString();
+            jsonInner.Value = param.ActualValue?.ToString();
+            jsons.Add(jsonInner);
+          }
+
+          json.parameters = jsons;
+
+          string serializedJson = JsonSerializer.Serialize(json);
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/getParameterInfos"));
       };
 
       server.Start();
