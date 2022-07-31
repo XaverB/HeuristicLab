@@ -181,6 +181,51 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
         }, "Get", "/getParameterInfos"));
       };
 
+      server.AfterStarting += (s) => {
+        s.Router.Register(new Route(async (ctx) => {
+
+          var pathParameters = ctx.Request.PathParameters;
+          var queryStrings = ctx.Request.QueryString;
+          var dataTypeString = queryStrings["dataType"];
+
+          var type = GetType(dataTypeString);
+          //var typeAndererWeg = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(x => x.GetTypes()).First(x => x.Name == dataTypeString);
+
+          //Type type = Type.GetType(dataTypeString);
+
+          dynamic json = new ExpandoObject();
+          var possibleTypes = ApplicationManager.Manager.GetTypes(type);
+
+
+          json.PossibleTypes = possibleTypes.Select(x => x.Name).ToList();
+
+          //foreach(var t in possibleTypes) {
+          //  t.ToString();
+          //}
+
+
+
+          json.dataType = dataTypeString;
+          //json.possibleTypes = possibleTypes;
+
+          //dynamic json = new ExpandoObject();
+          //List<dynamic> jsons = new List<dynamic>();
+          //foreach (var param in problem.Parameters) {
+          //  dynamic jsonInner = new ExpandoObject();
+          //  jsonInner.Name = param.Name;
+          //  jsonInner.Description = param.Description;
+          //  jsonInner.DataType = param.DataType?.ToString();
+          //  jsonInner.Value = param.ActualValue?.ToString();
+          //  jsons.Add(jsonInner);
+          //}
+
+          //json.parameters = jsons;
+
+          string serializedJson = JsonSerializer.Serialize(json);
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/getPossibleParameterValues"));
+      };
+
       server.Start();
       server.AfterStopping += (e) => { Console.WriteLine("=== === Server stopped === ==="); };
       Console.WriteLine($"* Server listening on {string.Join(", ", server.Prefixes)}{Environment.NewLine}");
@@ -200,6 +245,16 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
 
     }
 
+    public static Type GetType(string typeName) {
+      var type = Type.GetType(typeName);
+      if (type != null) return type;
+      foreach (var a in AppDomain.CurrentDomain.GetAssemblies()) {
+        type = a.GetType(typeName);
+        if (type != null)
+          return type;
+      }
+      return null;
+    }
 
     private static TreeNode CreateCategoryTree(IEnumerable<IGrouping<string, Type>> categories) {
 
