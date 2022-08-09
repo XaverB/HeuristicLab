@@ -124,8 +124,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
           json.Algorithms = rootNode;
 
 
-          string serializedJson = JsonSerializer.Serialize(json);
           ctx.Response.ContentType = "application/json";
+          string serializedJson = JsonSerializer.Serialize(json);
           await ctx.Response.SendResponseAsync(serializedJson);
         }, "Get", "/getAlgorithms"));
       };
@@ -141,9 +141,9 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
           json.Parameter = parameterList;
 
 
+          ctx.Response.ContentType = "application/json";
           string serializedJson = JsonSerializer.Serialize(json);
           await ctx.Response.SendResponseAsync(serializedJson);
-          ctx.Response.ContentType = "application/json";
         }, "Get", "/getProblemParameter"));
       };
 
@@ -159,9 +159,9 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
           json.Value = param.ActualValue.ToString();
 
 
+          ctx.Response.ContentType = "application/json";
           string serializedJson = JsonSerializer.Serialize(json);
           await ctx.Response.SendResponseAsync(serializedJson);
-          ctx.Response.ContentType = "application/json";
         }, "Get", "/getParameterInfo"));
       };
 
@@ -201,190 +201,233 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
           json.PossibleTypes = possibleTypes.Select(x => x.FullName).ToList();
           json.dataType = dataTypeString;
 
+          ctx.Response.ContentType = "application/json";
           string serializedJson = JsonSerializer.Serialize(json);
           await ctx.Response.SendResponseAsync(serializedJson);
-          ctx.Response.ContentType = "application/json";
         }, "Get", "/getPossibleParameterValues"));
       };
 
       server.AfterStarting += (s) => {
         s.Router.Register(new Route(async (ctx) => {
-        // https://github.com/scottoffen/grapevine/discussions/64
-        //JsonConvert
-        //dynamic requestBody = await JsonSerializer.DeserializeAsync<ExpandoObject>(ctx.Request.InputStream);
-        StreamReader stream = new StreamReader(ctx.Request.InputStream);
-        string requestBodyAsString = stream.ReadToEnd();
-        var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(requestBodyAsString);
+          // https://github.com/scottoffen/grapevine/discussions/64
+          //JsonConvert
+          //dynamic requestBody = await JsonSerializer.DeserializeAsync<ExpandoObject>(ctx.Request.InputStream);
+          StreamReader stream = new StreamReader(ctx.Request.InputStream);
+          string requestBodyAsString = stream.ReadToEnd();
+          var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(requestBodyAsString);
 
-        // Baseklasse für Valuetypes = ValueTypeValue
-        //string propertyName = requestBody.PropertyName.Value;
-        //string propertyTypeName = requestBody.DataType.toString();
-        //Type propertyType = GetType(propertyTypeName);
-        //string value = requestBody.Value;
+          // Baseklasse für Valuetypes = ValueTypeValue
+          string propertyName = dict["PropertyName"];
+          string propertyTypeName = dict["DataType"];
+          Type propertyType = GetType(propertyTypeName);
+          string value = dict["Value"];
 
-        string propertyName = dict["PropertyName"];
-        string propertyTypeName = dict["DataType"];
-        Type propertyType = GetType(propertyTypeName);
-        string value = dict["Value"];
+          // 1. create property
+          var property = Activator.CreateInstance(propertyType);
+          dynamic newPropertyValue = Convert.ChangeType(property, propertyType);
 
-        // 1. create property
-        var property = Activator.CreateInstance(propertyType);
-        dynamic newPropertyValue = Convert.ChangeType(property, propertyType);
-
-        var propertyFromProblem = problem.Parameters[propertyName];
-
-        //propertyFromProblem.ActualValue = newPropertyValue;
-
-        // 2. create type to set
-
-
-        // check if SimpleValue or complex parameter
-        var genericParam = property.GetType().GenericTypeArguments?.FirstOrDefault();
-        var problemParam = problem.Parameters[propertyName];
-        bool isSimpleValue = IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), property.GetType()); //  property.GetType().IsSubclassOf(ValueTypeValue.GetType());
-        bool isOptionaConstrainedValueParameter = IsSubclassOfRawGeneric(typeof(OptionalConstrainedValueParameter<>), problemParam.GetType());
-
-        if (isSimpleValue) {
-          if (newPropertyValue.Value is bool b) {
-            b = bool.Parse(value);
-            (property as BoolValue).Value = b;
-            propertyFromProblem.ActualValue = property as BoolValue;
-            //propertyFromProblem.ActualValue = b;
-          } else if (newPropertyValue.Value is double d) {
-            d = double.Parse(value);
-            (property as DoubleValue).Value = d;
-            propertyFromProblem.ActualValue = property as DoubleValue;
-            //propertyFromProblem.ActualValue = d;
-          }
-        } else {
-          // complex value
-          //problem.Parameters[propertyName].DataType = property.GetType();
-          IItem propertyAsItem = (IItem)property;
-
-          // we need to use the property with the same memory adress as in the validValues ItemCollection
-          if (isOptionaConstrainedValueParameter) {
-            // we need to find T so we can cast it to the right type
-            var genericArguments = problemParam.GetType().GetGenericArguments();
-            var genericArgument = genericArguments[0];
-
-            // we need to call the method with reflection, because we can't cast to OptionalConstrainedValueParameter with a generic type argument
-            var validValues2 = (problemParam as dynamic).ValidValues;
-
-            // using dynamic because we can not instant a variable who we don't know the generic type at compile time
-            // dynamic disables type checking
-
-            //var enumerator = ((ItemSet<>)validValues2).GetEnumerator();
-            dynamic enumerator = validValues2.GetEnumerator();
-
-
-
-            //var method = problemParam.GetType().GetMethod("ValidValues");
-            //var genericMethod = method.MakeGenericMethod(genericArguments);
-            //var validValuesObject = genericMethod.Invoke(null, null);
-            //var validValues = (IEnumerable<Object>)validValuesObject;
-
-            //var ocp = Convert.ChangeType(problemParam, typeof(OptionalConstrainedValueParameter<genericArgument>));
-            //var ocvp = problemParam as OptionalConstrainedValueParameter<genericArgument>;
-
-            while (enumerator.MoveNext()) {
-              object current = enumerator.Current;
-              if (current.GetType() == property.GetType()) {
-                propertyAsItem = (IItem)current;
-                  break;
-                }
-                //var choosenParam = enumerator.Where(x => x.GetType() == problemParam.GetType()).FirstOrDefault();
-              }
-
-              
-              //propertyAsItem = (IItem)choosenParam;
-
-              ;
-              //(problemParam is OptionalConstrainedValueParameter<>).ValidValues;
-            }
-              
-
-            problem.Parameters[propertyName].ActualValue = propertyAsItem;
-          }
-          //changedObj.Value =
-
-          // 3. set property value
-
+          var propertyFromProblem = problem.Parameters[propertyName];
 
           //propertyFromProblem.ActualValue = newPropertyValue;
-          //PropertyInfo propertyInfo = problem.GetType().GetProperty(propertyName);
-          ////propertyInfo.SetValue(problem, Convert.ChangeType(value, propertyInfo.PropertyType), null);
-          //propertyInfo.SetValue(problem, newPropertyValue, null);
 
-          //        var intValue = parameter.Value as ValueTypeValue<int>;
-          //if (intValue != null) {
-          //  if (e.Item.Checked) {
-          //    IntArray initialValues;
-          //    if (intValue.Value == int.MinValue)
-          //      initialValues = new IntArray(new int[] { -100, -50, 5 });
-          //    else if (intValue.Value == int.MaxValue)
-          //      initialValues = new IntArray(new int[] { 5, 50, 100 });
-          //    else if (intValue.Value == 0)
-          //      initialValues = new IntArray(new int[] { 0, 1, 2 });
-          //    else if (Math.Abs(intValue.Value) < 10)
-          //      initialValues = new IntArray(new int[] { intValue.Value - 1, intValue.Value, intValue.Value + 1 });
-          //    else initialValues = new IntArray(new int[] { intValue.Value / 2, intValue.Value, intValue.Value * 2 });
-          //    intParameters.Add(parameter, initialValues);
-          //    intParameters[parameter].Reset += new EventHandler(ValuesArray_Reset);
-          //  } else intParameters.Remove(parameter);
-          //}
+          // 2. create type to set
+          // check if SimpleValue or complex parameter
+          var genericParam = property.GetType().GenericTypeArguments?.FirstOrDefault();
+          var problemParam = problem.Parameters[propertyName];
+          bool isSimpleValue = IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), property.GetType()); //  property.GetType().IsSubclassOf(ValueTypeValue.GetType());
+          bool isOptionaConstrainedValueParameter = IsSubclassOfRawGeneric(typeof(OptionalConstrainedValueParameter<>), problemParam.GetType());
 
-          //var doubleValue = parameter.Value as ValueTypeValue<double>;
-          //if (doubleValue != null) {
-          //  if (e.Item.Checked) {
-          //    DoubleArray initialValues;
-          //    if (doubleValue.Value == double.MinValue)
-          //      initialValues = new DoubleArray(new double[] { -1, -0.5, 0 });
-          //    else if (doubleValue.Value == double.MaxValue)
-          //      initialValues = new DoubleArray(new double[] { 0, 0.5, 1 });
-          //    else if (doubleValue.Value == 0.0)
-          //      initialValues = new DoubleArray(new double[] { 0, 0.1, 0.2 });
-          //    else if (Math.Abs(doubleValue.Value) <= 1.0) {
-          //      if (doubleValue.Value > 0.9 || (doubleValue.Value < 0.0 && doubleValue.Value > -0.1))
-          //        initialValues = new DoubleArray(new double[] { doubleValue.Value - 0.2, doubleValue.Value - 0.1, doubleValue.Value });
-          //      else if (doubleValue.Value < -0.9 || (doubleValue.Value > 0 && doubleValue.Value < 0.1))
-          //        initialValues = new DoubleArray(new double[] { doubleValue.Value, doubleValue.Value + 0.1, doubleValue.Value + 0.2 });
-          //      else initialValues = new DoubleArray(new double[] { doubleValue.Value - 0.1, doubleValue.Value, doubleValue.Value + 0.1 });
-          //    } else initialValues = new DoubleArray(new double[] { doubleValue.Value / 2.0, doubleValue.Value, doubleValue.Value * 2.0 });
-          //    doubleParameters.Add(parameter, initialValues);
-          //    doubleParameters[parameter].Reset += new EventHandler(ValuesArray_Reset);
-          //  } else doubleParameters.Remove(parameter);
-          //}
+          if (isSimpleValue) {
+            if (newPropertyValue.Value is bool b) {
+              b = bool.Parse(value);
+              (property as BoolValue).Value = b;
+              propertyFromProblem.ActualValue = property as BoolValue;
+              //propertyFromProblem.ActualValue = b;
+            } else if (newPropertyValue.Value is double d) {
+              d = double.Parse(value);
+              (property as DoubleValue).Value = d;
+              propertyFromProblem.ActualValue = property as DoubleValue;
+              //propertyFromProblem.ActualValue = d;
+            }
+          } else {
+            // complex value
+            //problem.Parameters[propertyName].DataType = property.GetType();
+            IItem propertyAsItem = (IItem)property;
 
-          //var boolValue = parameter.Value as ValueTypeValue<bool>;
-          //if (boolValue != null) {
-          //  if (e.Item.Checked) boolParameters.Add(parameter);
-          //  else boolParameters.Remove(parameter);
-          //}
+            // we need to use the property with the same memory adress as in the validValues ItemCollection
+            if (isOptionaConstrainedValueParameter) {
+              // we need to find T so we can cast it to the right type
+              var genericArguments = problemParam.GetType().GetGenericArguments();
+              var genericArgument = genericArguments[0];
 
+              // we need to call the method with reflection, because we can't cast to OptionalConstrainedValueParameter with a generic type argument
+              var validValues2 = (problemParam as dynamic).ValidValues;
 
+              // using dynamic because we can not instant a variable who we don't know the generic type at compile time
+              // dynamic disables type checking
 
-          //var pathParameters = ctx.Request.PathParameters;
-          //var queryStrings = ctx.Request.QueryString;
-          //var dataTypeString = queryStrings["dataType"];
+              //var enumerator = ((ItemSet<>)validValues2).GetEnumerator();
+              dynamic enumerator = validValues2.GetEnumerator();
 
-          //var type = GetType(dataTypeString);
-          //dynamic json = new ExpandoObject();
-          //var possibleTypes = ApplicationManager.Manager.GetTypes(type);
+              while (enumerator.MoveNext()) {
+                object current = enumerator.Current;
+                if (current.GetType() == property.GetType()) {
+                  propertyAsItem = (IItem)current;
+                  break;
+                }
+              }
+            }
+            problem.Parameters[propertyName].ActualValue = propertyAsItem;
+          }
 
-
-          //json.PossibleTypes = possibleTypes.Select(x => x.Name).ToList();
-          //json.dataType = dataTypeString;
-
-          //string serializedJson = JsonSerializer.Serialize(json);
           ctx.Response.ContentType = "application/json";
           await ctx.Response.SendResponseAsync("ok");
         }, "Post", "/setProblemParameter"));
+      };
+
+      server.AfterStarting += (s) => {
+        s.Router.Register(new Route(async (ctx) => {
+
+          string parameterName = ctx.Request.QueryString["ParameterName"];
+          var parameter = problem.Parameters[parameterName];
+
+          dynamic json = new ExpandoObject();
+          json.Problem = problem.Name;
+          json.ProblemType = problem.GetType().FullName;
+          json.ParameterName = parameterName;
+          json.DataType = parameter.DataType.FullName;
+
+          var value = parameter.ActualValue;
+          if (value is ParameterizedNamedItem pmi) {
+            IDictionary<string, IItem> values = new Dictionary<string, IItem>();
+
+            List<dynamic> parameterInfos = new List<dynamic>();
+
+            pmi.CollectParameterValues(values);
+            json.Parameters = values;
+            // the item got paramters => add them to the json
+            foreach (var keyValuePair in values) {
+              dynamic current = new ExpandoObject();
+              current.Key = keyValuePair.Key;
+              current.DataType = keyValuePair.Value.GetType().FullName;
+              current.ItemDescription = keyValuePair.Value.ItemDescription;
+              current.ItemName = keyValuePair.Value.ItemName;
+              parameterInfos.Add(current);
+            }
+            json.Parameters = parameterInfos;
+          }
+
+          string serializedJson = JsonSerializer.Serialize(json);
+          ctx.Response.ContentType = "application/json";
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/problem/parameter/info"));
+      };
+
+      server.AfterStarting += (s) => {
+        s.Router.Register(new Route(async (ctx) => {
+          // https://github.com/scottoffen/grapevine/discussions/64
+          //JsonConvert
+          //dynamic requestBody = await JsonSerializer.DeserializeAsync<ExpandoObject>(ctx.Request.InputStream);
+          StreamReader stream = new StreamReader(ctx.Request.InputStream);
+          string requestBodyAsString = stream.ReadToEnd();
+          var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(requestBodyAsString);
+
+          // Baseklasse für Valuetypes = ValueTypeValue
+          string problemParameterName = dict["ProblemParameterName"];
+          string propertyName = dict["PropertyName"];
+          string propertyTypeName = dict["DataType"];
+          Type propertyType = GetType(propertyTypeName);
+          string value = dict["Value"];
+
+          // 1. create property
+          var property = Activator.CreateInstance(propertyType);
+          dynamic newPropertyValue = Convert.ChangeType(property, propertyType);
+
+          var problemParameter = problem.Parameters[problemParameterName];
+
+          if (problemParameter.ActualValue is ParameterizedNamedItem pmi) {
+            IDictionary<string, IItem> values = new Dictionary<string, IItem>();
+            pmi.CollectParameterValues(values);
+
+            var propertyToModify = values.Where(x => x.Key == propertyName).FirstOrDefault();
+            bool isSimpleValue = IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), propertyToModify.Value.GetType()); //  property.GetType().IsSubclassOf(ValueTypeValue.GetType());
+            bool isOptionaConstrainedValueParameter = IsSubclassOfRawGeneric(typeof(OptionalConstrainedValueParameter<>), propertyToModify.Value.GetType());
+
+            // TODO: setzen funktioniert nicht. Wir benötigen bei GET Param Info auch noch den aktuellen Wert
+
+            if (isSimpleValue) {
+              if (newPropertyValue.Value is bool b) {
+                var valueToModify = propertyToModify.Value;
+                b = bool.Parse(value);
+                (property as BoolValue).Value = b;
+                valueToModify = property as BoolValue;
+                //propertyFromProblem.ActualValue = b;
+              } else if (newPropertyValue.Value is double d) {
+                d = double.Parse(value);
+                (property as DoubleValue).Value = d;
+                var valueToModify = propertyToModify.Value;
+                valueToModify = property as BoolValue;
+                //propertyFromProblem.ActualValue = d;
+              }
+            } else {
+              // complex value
+              //problem.Parameters[propertyName].DataType = property.GetType();
+              IItem propertyAsItem = (IItem)property;
+
+              // we need to use the property with the same memory adress as in the validValues ItemCollection
+              if (isOptionaConstrainedValueParameter) {
+                // we need to find T so we can cast it to the right type
+                var genericArguments = propertyToModify.GetType().GetGenericArguments();
+                var genericArgument = genericArguments[0];
+
+                // we need to call the method with reflection, because we can't cast to OptionalConstrainedValueParameter with a generic type argument
+                var validValues2 = (propertyToModify as dynamic).ValidValues;
+
+                // using dynamic because we can not instant a variable who we don't know the generic type at compile time
+                // dynamic disables type checking
+
+                //var enumerator = ((ItemSet<>)validValues2).GetEnumerator();
+                dynamic enumerator = validValues2.GetEnumerator();
+
+                while (enumerator.MoveNext()) {
+                  object current = enumerator.Current;
+                  if (current.GetType() == property.GetType()) {
+                    propertyAsItem = (IItem)current;
+                    break;
+                  }
+                }
+              }
+              problem.Parameters[propertyName].ActualValue = propertyAsItem;
+            }
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.SendResponseAsync("ok");
+
+          } else {
+            ctx.Response.ContentType = "application/json";
+            ctx.Response.StatusCode = HttpStatusCode.BadRequest;
+            await ctx.Response.SendResponseAsync($"Problem.Parameter {problemParameter} is not a ParameterizedNamedItem. It does not have a ParameterCollection.");
+            return;
+          }
+        }, "Post", "/problem/parameter"));
+      };
+
+      server.AfterStarting += (s) => {
+        s.Router.Register(new Route(async (ctx) => {
+          Dictionary<string, IItem> results = new Dictionary<string, IItem>();
+          algo.Results.CollectResultValues(results);
+
+
+          ctx.Response.ContentType = "application/json";
+          string serializedJson = JsonSerializer.Serialize(results);
+          await ctx.Response.SendResponseAsync(serializedJson);
+        }, "Get", "/result"));
       };
 
       server.Start();
       server.AfterStopping += (e) => { Console.WriteLine("=== === Server stopped === ==="); };
       Console.WriteLine($"* Server listening on {string.Join(", ", server.Prefixes)}{Environment.NewLine}");
     }
+
 
     static bool IsSubclassOfRawGeneric(Type generic, Type toCheck) {
       while (toCheck != null && toCheck != typeof(object)) {
