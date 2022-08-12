@@ -19,11 +19,30 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
     private Restservice(StorableConstructorFlag _) : base(_) { }
     private Restservice(Restservice original, Cloner cloner)
       : base(original, cloner) { }
+
     public Restservice()
       : base() {
 
-      Parameters.Add(new ValueParameter<StringValue>("Url", "Base url of the RESTService"));
-      Parameters.Add(new ValueParameter<IntValue>("Port", "Port of the RESTService"));
+      var url = new StringValue("http://localhost");
+      var port = new IntValue(1234);
+
+      url.ValueChanged += Configuration_ValueChanged;
+      port.ValueChanged += Configuration_ValueChanged;
+
+      Parameters.Add(new ValueParameter<StringValue>("Url", "Base url of the RESTService", url));
+      Parameters.Add(new ValueParameter<IntValue>("Port", "Port of the RESTService", port));
+    }
+
+    private void Configuration_ValueChanged(object sender, EventArgs e) {
+      // restart restservice with new configuration
+    }
+
+    public event EventHandler ValueChanged;
+    protected virtual void OnValueChanged() {
+      EventHandler handler = ValueChanged;
+      if (handler != null) handler(this, EventArgs.Empty);
+      OnItemImageChanged();
+      OnToStringChanged();
     }
 
     public override IDeepCloneable Clone(Cloner cloner) {

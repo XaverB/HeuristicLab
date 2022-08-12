@@ -7,9 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using HeuristicLab.Common;
 using HeuristicLab.Core.Views;
 using HeuristicLab.MainForm;
 using HeuristicLab.MainForm.WindowsForms;
+using HeuristicLab.Optimization;
 using HeuristicLab.PluginInfrastructure;
 using HeuristicLab.PluginInfrastructure.Manager;
 
@@ -17,13 +19,17 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
   [View("RESTService View")]
   [Content(typeof(Restservice), true)]
   public partial class RestserviceView : AsynchronousContentView {
+
+    bool algorithmAssociated = false;
+
     public RestserviceView() {
       InitializeComponent();
       restserviceItemView.Content = new Restservice();
     }
 
     protected virtual void tabControl_DragEnterOver(object sender, DragEventArgs e) {
-
+      if (algorithmAssociated)
+        return;
       
 
       e.Effect = DragDropEffects.None;
@@ -37,11 +43,27 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       }
     }
     protected virtual void tabControl_DragDrop(object sender, DragEventArgs e) {
+      if (e.Effect == DragDropEffects.None)
+        return;
       //if (e.Effect != DragDropEffects.None) {
       //  IProblem problem = e.Data.GetData(HeuristicLab.Common.Constants.DragDropDataFormat) as IProblem;
       //  if (e.Effect.HasFlag(DragDropEffects.Copy)) problem = (IProblem)problem.Clone();
       //  Content.Problem = problem;
-      var defaultView = MainFormManager.CreateDefaultView(e.Data.GetData(HeuristicLab.Common.Constants.DragDropDataFormat).GetType());
+
+      Changed += (s, es) => {
+        ;
+      };
+
+      var data = e.Data;
+      var data2 = e.Data.GetData(HeuristicLab.Common.Constants.DragDropDataFormat);
+      var type = data.GetType();
+      var type2 = data2.GetType();
+
+      var isCloneable = data2 is IDeepCloneable;
+      var algoCopy = (data2 as IDeepCloneable).Clone();
+      // should we link or copy?
+      var defaultView = MainFormManager.CreateDefaultView(type2);
+      defaultView.Content = (IContent)algoCopy;
 
       var page = new System.Windows.Forms.TabPage();
       var control  = new HeuristicLab.MainForm.WindowsForms.DragOverTabControl();
@@ -49,11 +71,12 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       // tabPage1
       // 
       page.Controls.Add(defaultView as Control);
-      page.Name = "new";
-      page.Text = "new";
+      page.Name = algoCopy.ToString();
+      page.Text = algoCopy.ToString();
       page.UseVisualStyleBackColor = true;
 
       tabControl.TabPages.Add(page);
+      algorithmAssociated = true;
       ;
       //}
     }
