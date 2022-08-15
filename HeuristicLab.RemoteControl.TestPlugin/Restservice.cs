@@ -7,20 +7,27 @@ using HEAL.Attic;
 using HeuristicLab.Common;
 using HeuristicLab.Core;
 using HeuristicLab.Data;
+using HeuristicLab.Optimization;
 using HeuristicLab.Parameters;
+using HeuristicLab.RemoteControl.TestPlugin.Host;
 
 namespace HeuristicLab.RemoteControl.TestPlugin {
 
   [Item("RESTService", "A RESTService.....")]
   [Creatable(CreatableAttribute.Categories.TestingAndAnalysis, Priority = int.MaxValue)]
-  public class Restservice : ParameterizedNamedItem {
+  public class RestService : ParameterizedNamedItem {
+
+    private Host.Host host;
+    public IAlgorithm Algorithm { get; set; }
+    public IProblem Problem => Algorithm?.Problem;
+
     #region Ctor/Cloner
     [StorableConstructor]
-    private Restservice(StorableConstructorFlag _) : base(_) { }
-    private Restservice(Restservice original, Cloner cloner)
+    private RestService(StorableConstructorFlag _) : base(_) { }
+    private RestService(RestService original, Cloner cloner)
       : base(original, cloner) { }
 
-    public Restservice()
+    public RestService()
       : base() {
 
       var url = new StringValue("http://localhost");
@@ -33,8 +40,20 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       Parameters.Add(new ValueParameter<IntValue>("Port", "Port of the RESTService", port));
     }
 
+    public override IDeepCloneable Clone(Cloner cloner) {
+      return new RestService(this, cloner);
+    }
+    #endregion
+
     private void Configuration_ValueChanged(object sender, EventArgs e) {
       // restart restservice with new configuration
+      // TODO improve
+      host = new Host.Host(new HostConfiguration() {
+        Algorithm = Algorithm,
+        Url = (Parameters["Url"] as StringValue).Value,
+        Port = (Parameters["Port"] as IntValue).Value
+      });
+      host.Run();
     }
 
     public event EventHandler ValueChanged;
@@ -44,10 +63,5 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       OnItemImageChanged();
       OnToStringChanged();
     }
-
-    public override IDeepCloneable Clone(Cloner cloner) {
-      return new Restservice(this, cloner);
-    }
-    #endregion
   }
 }

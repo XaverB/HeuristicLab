@@ -167,9 +167,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="FirewallPolicy.cs" />
+    <Compile Include="Host\ActionProvider.cs" />
+    <Compile Include="Host\Handler.cs" />
+    <Compile Include="Host\IActionProvider.cs" />
+    <Compile Include="Host\IProblems.cs" />
+    <Compile Include="Host\IRouteBuilder.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Restservice.cs" />
+    <Compile Include="Host\Host.cs" />
+    <Compile Include="RestServiceHostConfiguration.cs" />
     <Compile Include="RestserviceView.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -177,6 +184,7 @@
       <DependentUpon>RestserviceView.cs</DependentUpon>
     </Compile>
     <Compile Include="TreeNode.cs" />
+    <Compile Include="Util\ReflectionUtil.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HeuristicLab.Clients.Access\3.3\HeuristicLab.Clients.Access-3.3.csproj">
