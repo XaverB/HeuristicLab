@@ -103,7 +103,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
         algo.StartAsync();
       });
 
-
+      return;
       server = RestServerBuilder.UseDefaults().Build();
       //var firewallPolicy = new FirewallPolicy {
       //  AppExecutablePath = @"D:\FH\HL\HeuristicLab\bin\HeuristicLab 3.3.exe", //Application Executable Path
