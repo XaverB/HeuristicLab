@@ -93,6 +93,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     }
 
     public async Task GetPossibleParameterValues(IHttpContext ctx) {
+      // TODO if type implements interface IConstrainedValueParameter use ValidValues for suggestions
+
       var pathParameters = ctx.Request.PathParameters;
       var queryStrings = ctx.Request.QueryString;
       var dataTypeString = queryStrings["dataType"];
@@ -101,6 +103,15 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       dynamic json = new ExpandoObject();
       var possibleTypes = ApplicationManager.Manager.GetTypes(type);
 
+      bool isTypeImplementingConstrainedValueParameters =
+        type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IConstrainedValueParameter<>));
+      if (isTypeImplementingConstrainedValueParameters) {
+        // TODO create object form type and append object.ValidValues to the json
+        // TODO check if the ValidValues are the same things as json.PossibleTypes
+        var instances = ApplicationManager.Manager.GetInstances(type);
+        
+        //json.recommendations = 
+      }
 
       json.PossibleTypes = possibleTypes.Select(x => x.FullName).ToList();
       json.dataType = dataTypeString;
