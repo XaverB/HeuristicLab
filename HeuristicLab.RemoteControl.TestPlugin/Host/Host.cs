@@ -53,7 +53,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
         s.Router.Register(handler.BuildPostProblemParameterRoute());
         s.Router.Register(handler.BuildSetProblemParameterRoute());
       };
-      server.Start();
+      
       server.AfterStopping += (e) => { Console.WriteLine("=== === Server stopped === ==="); };
       Console.WriteLine($"* Server listening on {string.Join(", ", server.Prefixes)}{Environment.NewLine}");
 
@@ -359,11 +359,12 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     }
 
     public void Run() {
-
+      server.Start();
     }
 
     public void Stop() {
-
+      server.Stop();
+      server.Dispose();
     }
 
   }

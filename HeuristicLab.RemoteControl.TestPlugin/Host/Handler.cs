@@ -44,12 +44,14 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     }
 
     public Route BuildGetProblemParameterRoute() {
-      throw new NotImplementedException();
+      // TODO this was just a quic fix so we can compile it
+      // check if this is the right route
+      return new Route(actionProvider.GetProblemParameter, "Get", "/getProblemParameter");
     }
 
     public Route BuildGetResultRoute() {
       return new Route(actionProvider.GetResult, "Get", "/result");
-    }
+    } 
 
     public Route BuildPostProblemParameterRoute() {
       return new Route(actionProvider.PostProblemParameter, "Post", "/setProblemParameter");

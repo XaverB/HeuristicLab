@@ -48,12 +48,32 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
     private void Configuration_ValueChanged(object sender, EventArgs e) {
       // restart restservice with new configuration
       // TODO improve
-      host = new Host.Host(new HostConfiguration() {
-        Algorithm = Algorithm,
-        Url = (Parameters["Url"] as StringValue).Value,
-        Port = (Parameters["Port"] as IntValue).Value
-      });
-      host.Run();
+
+      try {
+        if(host != null) {
+          host.Stop();
+        }
+
+        var urlParameter = Parameters["Url"];
+        var portparameter = Parameters["Port"];
+
+        var urlValue = urlParameter.ActualValue;
+        var portValue = portparameter.ActualValue;
+
+        // maybe the restservice item should also work with HL items
+        // so we don't have to do those casts here
+        var url = ((HeuristicLab.Data.StringValue)urlValue).Value;
+        var port = ((HeuristicLab.Data.ValueTypeValue<int>)portValue).Value;
+
+        host = new Host.Host(new HostConfiguration() {
+          Algorithm = Algorithm,
+          Url = url,
+          Port = port
+        });
+        host.Run();
+      } catch (Exception ex) {
+        Console.Error.WriteLine("Unhandled exception in ValueChanged", ex);
+      }
     }
 
     public event EventHandler ValueChanged;

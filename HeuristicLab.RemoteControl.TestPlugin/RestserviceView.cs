@@ -61,7 +61,11 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       var defaultView = MainFormManager.CreateDefaultView(type2);
       defaultView.Content = (IContent)algoCopy;
 
-      (restserviceItemView.Content as RestService).Algorithm = (IContent)algoCopy;
+      // we need to set the copied algo as a reference to the restservice item 
+      // so the restservice can expose the properties
+
+      IAlgorithm castedAlgocopy = (IAlgorithm) algoCopy;
+      (restserviceItemView.Content as RestService).Algorithm = castedAlgocopy;
 
       var page = new System.Windows.Forms.TabPage();
       var control  = new HeuristicLab.MainForm.WindowsForms.DragOverTabControl();
