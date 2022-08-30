@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -16,7 +17,7 @@ using HeuristicLab.RemoteControl.TestPlugin.Util;
 
 namespace HeuristicLab.RemoteControl.TestPlugin.Host {
   public class ActionProvider : IActionProvider {
-
+    private const string CONTENT_TYPE_JSON = "application/json";
     private readonly IProblem Problem;
     private readonly IAlgorithm Algorithm;
 
@@ -25,18 +26,83 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Algorithm = algorithm;
     }
 
-    public async Task GetParameterInfo(IHttpContext ctx) {
+
+    dynamic GetProblemParameter(IKeyedItemCollection<string, IParameter> rootParameter, string previousPath) {
+      var parameters = rootParameter;
       dynamic json = new ExpandoObject();
-      var param = Problem.Parameters.LastOrDefault();
-      json.Name = param.Name;
-      json.Description = param.Description;
-      json.DataType = param.DataType.ToString();
-      json.Value = param.ActualValue.ToString();
+      List<dynamic> parameterJson = new List<dynamic>();
+      json.Parameters = parameterJson;
+
+      foreach (var parameter in parameters) {
+        bool isValueParameter2 = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IValueParameter<>));
+
+        if (isValueParameter2) {
+          dynamic currentJson = new ExpandoObject();
+          currentJson.Type = parameter.GetType().FullName;
+          currentJson.Name = parameter.Name;
+          currentJson.Path = $"{previousPath}.{parameter.Name}";
+          //currentJson.Value = parameter.ActualValue;
+          bool isParameterizedItem = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IParameterizedItem));
+
+          bool isGenericParameterizedItem2 = false;
+          var genericArguments = parameter.GetType().GetGenericArguments();
+          foreach(var genericArgument in genericArguments) { 
+            var interfaces = genericArgument.GetInterfaces();
+
+            var isParameterizedItem2 = interfaces.Any(x => x == typeof(IParameterizedItem));
+            if(isParameterizedItem2) {
+              isGenericParameterizedItem2 = true;
+              break;
+            }
+          }
+
+          if (isParameterizedItem || isGenericParameterizedItem2) {
+            var actualValue = parameter.ActualValue;
+            currentJson.Parameters = GetProblemParameter((actualValue as IParameterizedItem).Parameters, $"{previousPath}.{parameter.Name}"); // maybe we need to note that this is a generic argument
+          }
+
+          parameterJson.Add(currentJson);
+        }
+      }
+
+      return json;
+    }
 
 
-      ctx.Response.ContentType = "application/json";
+    public async Task GetParameterInfo(IHttpContext ctx) {
+
+      // Versuch
+
+      dynamic json = new ExpandoObject();
+      json.ProblemParameters = GetProblemParameter((IKeyedItemCollection<string, IParameter>)Problem.Parameters, "Problem");
+      json.AlgorithmParameters = GetProblemParameter((IKeyedItemCollection<string, IParameter>)Algorithm.Parameters, "Algorithm");
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
       string serializedJson = JsonSerializer.Serialize(json);
       await ctx.Response.SendResponseAsync(serializedJson);
+      return;
+
+
+
+
+
+
+
+
+
+
+      // Versucht Ende
+      //dynamic json = new ExpandoObject();
+      //var param = Problem.Parameters.LastOrDefault();
+      //json.Name = param.Name;
+      //json.Description = param.Description;
+      //json.DataType = param.DataType.ToString();
+      //json.Value = param.ActualValue.ToString();
+
+
+      //ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      //string serializedJson = JsonSerializer.Serialize(json);
+      //await ctx.Response.SendResponseAsync(serializedJson);
     }
 
     public async Task GetParameterInfoInfo(IHttpContext ctx) {
@@ -70,7 +136,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       }
 
       string serializedJson = JsonSerializer.Serialize(json);
-      ctx.Response.ContentType = "application/json";
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
       await ctx.Response.SendResponseAsync(serializedJson);
     }
 
@@ -103,20 +169,51 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       dynamic json = new ExpandoObject();
       var possibleTypes = ApplicationManager.Manager.GetTypes(type);
 
+
+      var superInstance = ApplicationManager.Manager.GetInstances(type);
+      foreach (var i in superInstance) {
+        bool isOptionaConstrainedValueParameter2 = ReflectionUtil.IsSubclassOfRawGeneric(typeof(OptionalConstrainedValueParameter<>), i.GetType());
+        if (isOptionaConstrainedValueParameter2) {
+          dynamic dasd = i;
+          var ding = dasd.ValidValues;
+        }
+      }
+
+      var hasValidVlaues = type.GetProperty(nameof(IConstrainedValueParameter<IItem>.ValidValues)) != null;
+      if (hasValidVlaues) {
+        ;
+      }
+
+      bool isOptionaConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(OptionalConstrainedValueParameter<>), type);
+      if (isOptionaConstrainedValueParameter) {
+        ;
+        var instances = ApplicationManager.Manager.GetInstances(type);
+        foreach (var instance in instances) {
+          dynamic dynamicInstance = instance;
+          var values = dynamicInstance.ValidValues;
+          if (values != null) {
+            ;
+          }
+
+
+        }
+        ;
+      }
+
       bool isTypeImplementingConstrainedValueParameters =
         type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IConstrainedValueParameter<>));
       if (isTypeImplementingConstrainedValueParameters) {
         // TODO create object form type and append object.ValidValues to the json
         // TODO check if the ValidValues are the same things as json.PossibleTypes
         var instances = ApplicationManager.Manager.GetInstances(type);
-        
+
         //json.recommendations = 
       }
 
       json.PossibleTypes = possibleTypes.Select(x => x.FullName).ToList();
       json.dataType = dataTypeString;
 
-      ctx.Response.ContentType = "application/json";
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
       string serializedJson = JsonSerializer.Serialize(json);
       await ctx.Response.SendResponseAsync(serializedJson);
     }
@@ -133,7 +230,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       json.Parameter = parameterList;
 
 
-      ctx.Response.ContentType = "application/json";
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
       string serializedJson = JsonSerializer.Serialize(json);
       await ctx.Response.SendResponseAsync(serializedJson);
     }
@@ -142,9 +239,37 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Dictionary<string, IItem> results = new Dictionary<string, IItem>();
       Algorithm.Results.CollectResultValues(results);
 
+      dynamic json = new ExpandoObject();
+      List<dynamic> prettyResults = new List<dynamic>();
 
-      ctx.Response.ContentType = "application/json";
-      string serializedJson = JsonSerializer.Serialize(results);
+      int isValueTypeCount = 0;
+      int isNotValueTypeCount = 0;
+      foreach (var result in results) {
+
+        bool isValueType = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), result.Value.GetType());
+        if (!isValueType) {
+          isNotValueTypeCount++;
+          continue;
+        }
+        isValueTypeCount++;
+        dynamic current = new ExpandoObject();
+        current.Key = result.Key;
+        current.DataType = result.Value.GetType().FullName;
+        current.ItemDescription = result.Value.ItemDescription;
+        current.ItemName = result.Value.ItemName;
+        current.Value = result.Value;
+        prettyResults.Add(current);
+      }
+
+      json.Results = prettyResults;
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+
+      var options = new JsonSerializerOptions {
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals
+      };
+
+      string serializedJson = JsonSerializer.Serialize(json, options);
       await ctx.Response.SendResponseAsync(serializedJson);
     }
 
@@ -220,7 +345,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
         Problem.Parameters[propertyName].ActualValue = propertyAsItem;
       }
 
-      ctx.Response.ContentType = "application/json";
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
       await ctx.Response.SendResponseAsync("ok");
     }
 
@@ -252,6 +377,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
         var propertyToModify = values.Where(x => x.Key == propertyName).FirstOrDefault();
         bool isSimpleValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), propertyToModify.Value.GetType()); //  property.GetType().IsSubclassOf(ValueTypeValue.GetType());
         bool isOptionaConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(OptionalConstrainedValueParameter<>), propertyToModify.Value.GetType());
+        bool isStringConvertibleArray = ReflectionUtil.IsSubclassOfRawGeneric(typeof(StringConvertibleArray<>), propertyToModify.Value.GetType());
 
         // TODO: setzen funktioniert nicht. Wir benötigen bei GET Param Info auch noch den aktuellen Wert
 
@@ -296,18 +422,77 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
                 break;
               }
             }
-          }
+          } else if (isStringConvertibleArray) {
+            if (value.Contains(',')) {
+              var newArray = Activator.CreateInstance(propertyToModify.Value.GetType(), new object[] { value.Split(',').Length });
+              int i = 0;
+              foreach (var val in value.Split(',')) {
+                var setMethod = newArray.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Instance);
+                var methods = newArray.GetType().GetMethods();
+                //dynamic di = newArray;
+
+                //var targetType = propertyToModify.Value.GetType().GenericTypeArguments.FirstOrDefault();
+                //di[i] = Convert.ChangeType(val, targetType); 
+
+
+                //di.SetValue(val, i);
+
+                setMethod.Invoke(propertyToModify.Value, new object[] { val, i });
+                propertyAsItem = (IItem)newArray;
+              }
+            }
+
+          }  // TODO check if necessary - if nothing works anymore we need to remove the else
           Problem.Parameters[propertyName].ActualValue = propertyAsItem;
         }
-        ctx.Response.ContentType = "application/json";
+        ctx.Response.ContentType = CONTENT_TYPE_JSON;
         await ctx.Response.SendResponseAsync("ok");
 
       } else {
-        ctx.Response.ContentType = "application/json";
+        ctx.Response.ContentType = CONTENT_TYPE_JSON;
         ctx.Response.StatusCode = HttpStatusCode.BadRequest;
         await ctx.Response.SendResponseAsync($"Problem.Parameter {problemParameter} is not a ParameterizedNamedItem. It does not have a ParameterCollection.");
         return;
       }
+    }
+
+    public async Task GetExecutionState(IHttpContext ctx) {
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      ctx.Response.StatusCode = HttpStatusCode.Ok;
+      await ctx.Response.SendResponseAsync(Algorithm.ExecutionState.ToString());
+    }
+
+    public async Task SetExecuteablePrepare(IHttpContext ctx) {
+      Algorithm.Prepare();
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      ctx.Response.StatusCode = Algorithm.ExecutionState == ExecutionState.Prepared ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
+      await ctx.Response.SendResponseAsync("ok");
+    }
+
+    public async Task SetExecuteableStart(IHttpContext ctx) {
+      // TODO maybe we should use the isStarted callback to provide a status to the user
+      _ = Algorithm.StartAsync();
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      ctx.Response.StatusCode = Algorithm.ExecutionState == ExecutionState.Started ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
+      await ctx.Response.SendResponseAsync("ok");
+    }
+
+    public async Task SetExecuteablePause(IHttpContext ctx) {
+      Algorithm.Pause();
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      ctx.Response.StatusCode = Algorithm.ExecutionState == ExecutionState.Paused ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
+      await ctx.Response.SendResponseAsync("ok");
+    }
+
+    public async Task SetExecuteableStop(IHttpContext ctx) {
+      Algorithm.Stop();
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      ctx.Response.StatusCode = Algorithm.ExecutionState == ExecutionState.Stopped ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
+      await ctx.Response.SendResponseAsync("ok");
     }
   }
 }

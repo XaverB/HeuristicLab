@@ -20,7 +20,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
   [Content(typeof(RestService), true)]
   public partial class RestserviceView : AsynchronousContentView {
 
-    bool algorithmAssociated = false;
+    private bool algorithmAssociated = false;
+    private RestService RestService => restserviceItemView.Content as RestService;
 
     public RestserviceView() {
       InitializeComponent();
@@ -30,7 +31,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
     protected virtual void tabControl_DragEnterOver(object sender, DragEventArgs e) {
       if (algorithmAssociated)
         return;
-      
+
 
       e.Effect = DragDropEffects.None;
       if (!ReadOnly && (e.Data.GetData(HeuristicLab.Common.Constants.DragDropDataFormat) != null) /*&& Content.ProblemType.IsAssignableFrom(e.Data.GetData(HeuristicLab.Common.Constants.DragDropDataFormat).GetType()))*/) {
@@ -39,7 +40,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
         else if (e.AllowedEffect.HasFlag(DragDropEffects.Copy)) e.Effect = DragDropEffects.Copy;
         else if (e.AllowedEffect.HasFlag(DragDropEffects.Move)) e.Effect = DragDropEffects.Move;
         else if (e.AllowedEffect.HasFlag(DragDropEffects.Link)) e.Effect = DragDropEffects.Link;
-      
+
       }
     }
     protected virtual void tabControl_DragDrop(object sender, DragEventArgs e) {
@@ -64,11 +65,11 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       // we need to set the copied algo as a reference to the restservice item 
       // so the restservice can expose the properties
 
-      IAlgorithm castedAlgocopy = (IAlgorithm) algoCopy;
+      IAlgorithm castedAlgocopy = (IAlgorithm)algoCopy;
       (restserviceItemView.Content as RestService).Algorithm = castedAlgocopy;
 
       var page = new System.Windows.Forms.TabPage();
-      var control  = new HeuristicLab.MainForm.WindowsForms.DragOverTabControl();
+      var control = new HeuristicLab.MainForm.WindowsForms.DragOverTabControl();
       // 
       // tabPage1
       // 
@@ -76,11 +77,16 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       page.Name = algoCopy.ToString();
       page.Text = algoCopy.ToString();
       page.UseVisualStyleBackColor = true;
+      
 
       tabControl.TabPages.Add(page);
       algorithmAssociated = true;
-      ;
+      RestService.ConfigureAndRunHost();
       //}
+    }
+
+    private void restserviceItemView_Load(object sender, EventArgs e) {
+      RestService.ConfigureAndRunHost();
     }
   }
 }

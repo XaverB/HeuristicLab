@@ -38,6 +38,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
 
       Parameters.Add(new ValueParameter<StringValue>("Url", "Base url of the RESTService", url));
       Parameters.Add(new ValueParameter<IntValue>("Port", "Port of the RESTService", port));
+      //ConfigureAndRunHost();
     }
 
     public override IDeepCloneable Clone(Cloner cloner) {
@@ -50,30 +51,34 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       // TODO improve
 
       try {
-        if(host != null) {
-          host.Stop();
-        }
-
-        var urlParameter = Parameters["Url"];
-        var portparameter = Parameters["Port"];
-
-        var urlValue = urlParameter.ActualValue;
-        var portValue = portparameter.ActualValue;
-
-        // maybe the restservice item should also work with HL items
-        // so we don't have to do those casts here
-        var url = ((HeuristicLab.Data.StringValue)urlValue).Value;
-        var port = ((HeuristicLab.Data.ValueTypeValue<int>)portValue).Value;
-
-        host = new Host.Host(new HostConfiguration() {
-          Algorithm = Algorithm,
-          Url = url,
-          Port = port
-        });
-        host.Run();
+        ConfigureAndRunHost();
       } catch (Exception ex) {
         Console.Error.WriteLine("Unhandled exception in ValueChanged", ex);
       }
+    }
+
+    public void ConfigureAndRunHost() {
+      if (host != null) {
+        host.Stop();
+      }
+
+      var urlParameter = Parameters["Url"];
+      var portparameter = Parameters["Port"];
+
+      var urlValue = urlParameter.ActualValue;
+      var portValue = portparameter.ActualValue;
+
+      // maybe the restservice item should also work with HL items
+      // so we don't have to do those casts here
+      var url = ((HeuristicLab.Data.StringValue)urlValue).Value;
+      var port = ((HeuristicLab.Data.ValueTypeValue<int>)portValue).Value;
+
+      host = new Host.Host(new HostConfiguration() {
+        Algorithm = Algorithm,
+        Url = url,
+        Port = port
+      });
+      host.Run();
     }
 
     public event EventHandler ValueChanged;

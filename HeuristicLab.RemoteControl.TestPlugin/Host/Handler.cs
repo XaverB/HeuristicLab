@@ -23,42 +23,60 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       this.actionProvider = actionProvider;
     }
 
-    public Route BuildProblemParameterRoute() {
+    public IRoute BuildProblemParameterRoute() {
       return new Route(actionProvider.GetProblemParameterAction, "Get", "/getProblemParameter");
     }
 
-    public Route BuildGetParameterInfoInfoRoute() {
+    public IRoute BuildGetParameterInfoInfoRoute() {
       return new Route(actionProvider.GetParameterInfoInfo, "Get", "/problem/parameter/info");
     }
 
-    public Route BuildGetParameterInfoRoute() {
+    public IRoute BuildGetParameterInfoRoute() {
       return new Route(actionProvider.GetParameterInfo, "Get", "/getParameterInfo");
     }
 
-    public Route BuildGetParameterInfosRoute() {
+    public IRoute BuildGetParameterInfosRoute() {
       return new Route(actionProvider.GetParameterInfos, "Get", "/getParameterInfos");
     }
 
-    public Route BuildGetPossibleParameterValuesRoute() {
+    public IRoute BuildGetPossibleParameterValuesRoute() {
       return new Route(actionProvider.GetPossibleParameterValues, "Get", "/getPossibleParameterValues");
     }
 
-    public Route BuildGetProblemParameterRoute() {
+    public IRoute BuildGetProblemParameterRoute() {
       // TODO this was just a quic fix so we can compile it
       // check if this is the right route
       return new Route(actionProvider.GetProblemParameter, "Get", "/getProblemParameter");
     }
 
-    public Route BuildGetResultRoute() {
+    public IRoute BuildGetResultRoute() {
       return new Route(actionProvider.GetResult, "Get", "/result");
     } 
 
-    public Route BuildPostProblemParameterRoute() {
+    public IRoute BuildPostProblemParameterRoute() {
       return new Route(actionProvider.PostProblemParameter, "Post", "/setProblemParameter");
     }
 
-    public Route BuildSetProblemParameterRoute() {
+    public IRoute BuildSetProblemParameterRoute() {
       return new Route(actionProvider.SetProblemParameter, "Post", "/problem/parameter");
+    }
+
+    public IRoute BuildGetExecuteStateRoute() {
+      return new Route(actionProvider.GetExecutionState, "Get", "/algorithm/executionState");
+    }
+
+    public IRoute BuildSetExecuteablePrepareRoute() {
+      return new Route(actionProvider.SetExecuteablePrepare, "Post", "/algorithm/prepare");
+    }
+
+    public IRoute BuildSetExecuteableStartRoute() {
+      return new Route(actionProvider.SetExecuteableStart, "Post", "/algorithm/start");
+    }
+    public IRoute BuildSetExecuteablePauseRoute() {
+      return new Route(actionProvider.SetExecuteablePause, "Post", "/algorithm/pause");
+    }
+    public IRoute BuildSetExecuteableStopRoute() {
+      return new Route(actionProvider.SetExecuteableStop, "Post", "/algorithm/stop");
     }
   }
 }
