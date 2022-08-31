@@ -7,9 +7,12 @@ using Grapevine;
 
 namespace HeuristicLab.RemoteControl.TestPlugin.Host {
   public interface IActionProvider {
+    Task PostParameterValue(IHttpContext ctx);
+
+    Task GetParameterValue(IHttpContext ctx);
     Task GetProblemParameterAction(IHttpContext ctx);
     Task GetParameterInfoInfo(IHttpContext ctx);
-    Task GetParameterInfo(IHttpContext ctx);
+    Task GetPropertyPaths(IHttpContext ctx);
     Task GetParameterInfos(IHttpContext ctx);
     Task GetPossibleParameterValues(IHttpContext ctx);
     Task GetProblemParameter(IHttpContext ctx);

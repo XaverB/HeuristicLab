@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -24,6 +25,41 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     public ActionProvider(IProblem problem, IAlgorithm algorithm) {
       Problem = problem;
       Algorithm = algorithm;
+    }
+
+    object FindProperty(IKeyedItemCollection<string, IParameter> rootParameter, string previousPath, string desiredProperty) {
+      foreach (var parameter in rootParameter) {
+        bool isValueParameter2 = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IValueParameter<>));
+
+        if (isValueParameter2) {
+
+          string currentPath = $"{previousPath}.{parameter.Name}";
+          if (currentPath == desiredProperty)
+            return parameter;
+
+          //currentJson.Value = parameter.ActualValue;
+          bool isParameterizedItem = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IParameterizedItem));
+
+          bool isGenericParameterizedItem2 = false;
+          var genericArguments = parameter.GetType().GetGenericArguments();
+          foreach (var genericArgument in genericArguments) {
+            var interfaces = genericArgument.GetInterfaces();
+
+            var isParameterizedItem2 = interfaces.Any(x => x == typeof(IParameterizedItem));
+            if (isParameterizedItem2) {
+              isGenericParameterizedItem2 = true;
+              break;
+            }
+          }
+
+          if (isParameterizedItem || isGenericParameterizedItem2) {
+            var actualValue = parameter.ActualValue;
+            return FindProperty((actualValue as IParameterizedItem).Parameters, $"{previousPath}.{parameter.Name}", desiredProperty); // maybe we need to note that this is a generic argument
+          }
+        }
+      }
+
+      return null;
     }
 
 
@@ -68,8 +104,98 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       return json;
     }
 
+    public async Task PostParameterValue(IHttpContext ctx) {
+      StreamReader stream = new StreamReader(ctx.Request.InputStream);
+      string requestBodyAsString = stream.ReadToEnd();
+      var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(requestBodyAsString);
 
-    public async Task GetParameterInfo(IHttpContext ctx) {
+      string path = dict["path"];
+      string typeToSet = dict["datatype"];
+      Type propertyType = ReflectionUtil.GetType(typeToSet);
+      string valueToSet = dict["value"];
+
+      
+      object parameter = FindProperty(Problem.Parameters, "Problem", path);
+      if (parameter == null)
+        parameter = FindProperty(Algorithm.Parameters, "Algorithm", path);
+
+      //var newProperty = Activator.CreateInstance(propertyType, valueToSet);
+
+
+      //TypeConverter typeConverter = TypeDescriptor.GetConverter(typeToSet);
+      //object propValue = typeConverter.ConvertFromString(valueToSet);
+
+      // !! alles valueparameter, constrainedvalueparameter mit validvalues, fixedvalueparameter könen vermutlich nicht geädnert werden
+
+
+      // for ValueTypeValue:
+      //parameter.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(parameter,
+      // fetch method from ValueType. This setter wants a BoolValue for bools and so on
+      bool isValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueParameter<>), propertyType);
+      bool isConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), propertyType);
+      bool isFixedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(FixedValueParameter<>), propertyType);
+
+      if (isValueParameter) {
+        var valueTypeSetter = parameter.GetType().GetMethod("set_Value", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+
+        // e.g. BoolValue
+        var genericTypeArgument = parameter.GetType().GetGenericArguments().FirstOrDefault();
+        var typeArgumentInstance = Activator.CreateInstance(genericTypeArgument);
+        typeArgumentInstance.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(typeArgumentInstance, new object[] { valueToSet });
+        valueTypeSetter?.Invoke(parameter, new object[] { typeArgumentInstance });
+      } else if (isConstrainedValueParameter) {
+        // todo
+      }
+
+      await ctx.Response.SendResponseAsync("ok");
+
+    }
+
+      public async Task GetParameterValue(IHttpContext ctx) {
+      var parameterToLookFor = ctx.Request.QueryString["parameter"];
+      object parameter = FindProperty(Problem.Parameters, "Problem", parameterToLookFor);
+      if (parameter == null)
+        parameter = FindProperty(Algorithm.Parameters, "Algorithm", parameterToLookFor);
+
+      ctx.Response.ContentType = CONTENT_TYPE_JSON;
+      if (parameter == null) {
+        ctx.Response.StatusCode = HttpStatusCode.BadRequest;
+        await ctx.Response.SendResponseAsync($"Parameter {parameterToLookFor} could not be found");
+      }
+
+      // is it safe to assume that every parameter is IValueParameter?
+      IValueParameter valueParameter = parameter as IValueParameter;
+      if(valueParameter == null) {
+        ctx.Response.StatusCode = HttpStatusCode.BadRequest;
+        await ctx.Response.SendResponseAsync($"Parameter {parameterToLookFor} is not a IValueParameter. Type: {parameter.GetType().FullName}");
+      }
+
+
+      dynamic json = new ExpandoObject();
+      json.Name = valueParameter.Name;
+      // for valuetypevalues we need to fetch their value by accessing the value of the property before..
+      bool isValueValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), valueParameter.Value?.GetType());
+      if (isValueValue) {
+        // we need to use reflection because we don't know the generic type and therefore can't cast the object
+        var value = valueParameter.Value.GetType().GetProperty(nameof(IValueParameter.Value), 
+          BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(valueParameter.Value);
+        json.Value = value; 
+      }
+      else
+        json.Value = valueParameter.Value;
+
+      string serializedJson = JsonSerializer.Serialize(json);
+
+
+
+
+      await ctx.Response.SendResponseAsync(serializedJson);
+    }
+
+    /// <summary>
+    /// Returns all property paths and their datatype.
+    /// </summary>
+    public async Task GetPropertyPaths(IHttpContext ctx) {
 
       // Versuch
 
@@ -81,14 +207,6 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       string serializedJson = JsonSerializer.Serialize(json);
       await ctx.Response.SendResponseAsync(serializedJson);
       return;
-
-
-
-
-
-
-
-
 
 
       // Versucht Ende

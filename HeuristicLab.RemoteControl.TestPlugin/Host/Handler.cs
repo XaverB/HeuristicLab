@@ -23,6 +23,14 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       this.actionProvider = actionProvider;
     }
 
+    public IRoute BuildPostParameterValueRoute() {
+      return new Route(actionProvider.PostParameterValue, "Post", "/parameter/value");
+    }
+
+    public IRoute BuildGetParameterValueRoute() {
+      return new Route(actionProvider.GetParameterValue, "Get", "/parameter/value");
+    }
+
     public IRoute BuildProblemParameterRoute() {
       return new Route(actionProvider.GetProblemParameterAction, "Get", "/getProblemParameter");
     }
@@ -31,8 +39,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       return new Route(actionProvider.GetParameterInfoInfo, "Get", "/problem/parameter/info");
     }
 
-    public IRoute BuildGetParameterInfoRoute() {
-      return new Route(actionProvider.GetParameterInfo, "Get", "/getParameterInfo");
+    public IRoute BuildGetPropertyPaths() {
+      return new Route(actionProvider.GetPropertyPaths, "Get", "/meta/property");
     }
 
     public IRoute BuildGetParameterInfosRoute() {

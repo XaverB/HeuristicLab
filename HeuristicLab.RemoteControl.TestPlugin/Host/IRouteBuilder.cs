@@ -7,10 +7,10 @@ using Grapevine;
 
 namespace HeuristicLab.RemoteControl.TestPlugin.Host {
   public interface IRouteBuilder {
+    IRoute BuildGetParameterValueRoute();
     IRoute BuildProblemParameterRoute();
-
     IRoute BuildGetProblemParameterRoute();
-    IRoute BuildGetParameterInfoRoute();
+    IRoute BuildGetPropertyPaths();
     IRoute BuildGetParameterInfosRoute();
     IRoute BuildGetPossibleParameterValuesRoute();
     IRoute BuildSetProblemParameterRoute();
