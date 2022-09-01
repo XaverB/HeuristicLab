@@ -30,8 +30,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     object FindProperty(IKeyedItemCollection<string, IParameter> rootParameter, string previousPath, string desiredProperty) {
       foreach (var parameter in rootParameter) {
         bool isValueParameter2 = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IValueParameter<>));
-
-        if (isValueParameter2) {
+        bool isConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), parameter.GetType());
+        if (isValueParameter2 | isConstrainedValueParameter) {
 
           string currentPath = $"{previousPath}.{parameter.Name}";
           if (currentPath == desiredProperty)
@@ -54,7 +54,9 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
 
           if (isParameterizedItem || isGenericParameterizedItem2) {
             var actualValue = parameter.ActualValue;
-            return FindProperty((actualValue as IParameterizedItem).Parameters, $"{previousPath}.{parameter.Name}", desiredProperty); // maybe we need to note that this is a generic argument
+            object item = FindProperty((actualValue as IParameterizedItem).Parameters, $"{previousPath}.{parameter.Name}", desiredProperty); // maybe we need to note that this is a generic argument
+            if (item != null)
+              return item;
           }
         }
       }
@@ -71,7 +73,6 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
 
       foreach (var parameter in parameters) {
         bool isValueParameter2 = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IValueParameter<>));
-
         if (isValueParameter2) {
           dynamic currentJson = new ExpandoObject();
           currentJson.Type = parameter.GetType().FullName;
@@ -80,13 +81,44 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
           //currentJson.Value = parameter.ActualValue;
           bool isParameterizedItem = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IParameterizedItem));
 
+          // check if the value is a interface so we can deliver possible values
+          // TODO
+          Type genericTypeArgument = null;
+          genericTypeArgument = parameter.GetType().GetGenericArguments().FirstOrDefault();
+          bool isGenericTypeArgumentInterface = genericTypeArgument?.IsInterface ?? false;
+          if (isGenericTypeArgumentInterface) {
+            var possibleInstances = ApplicationManager.Manager.GetInstances(genericTypeArgument);
+            currentJson.Note = "This parameters generic type argument is a interface. Take a look at PossibleInstances";
+            currentJson.PossibleInstances = possibleInstances.Select(x => x.GetType().FullName);
+            //var genericTypeArgument = property.GetType().GetGenericArguments().FirstOrDefault();
+            //bool isGenericTypeArgumentInterface = genericTypeArgument.IsInterface;
+          }
+
+          // check if the value is a constrainedvalue, so we can deliver possible values
+          bool isConstraintValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), parameter.GetType());
+          if(isConstraintValue) {
+            currentJson.Note = "This parameter is a ConstrainedValueParameter. Take a look at the ValidValues";
+
+            var validValuesMethod = parameter.GetType().GetMethod("get_ValidValues", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+            object itemSet = validValuesMethod.Invoke(parameter, null);
+            var getEnumeratorMethod = itemSet.GetType().GetMethod("GetEnumerator");
+            IEnumerator<object> enumerator = (IEnumerator<object>)getEnumeratorMethod.Invoke(itemSet, null);
+            List<string> validValues = new List<string>();
+            while (enumerator.MoveNext()) {
+              validValues.Add(enumerator.Current.GetType().FullName);
+            }
+            currentJson.ValidValues = validValues;
+          }
+          // TODO
+
+
           bool isGenericParameterizedItem2 = false;
           var genericArguments = parameter.GetType().GetGenericArguments();
-          foreach(var genericArgument in genericArguments) { 
+          foreach (var genericArgument in genericArguments) {
             var interfaces = genericArgument.GetInterfaces();
 
             var isParameterizedItem2 = interfaces.Any(x => x == typeof(IParameterizedItem));
-            if(isParameterizedItem2) {
+            if (isParameterizedItem2) {
               isGenericParameterizedItem2 = true;
               break;
             }
@@ -114,10 +146,10 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Type propertyType = ReflectionUtil.GetType(typeToSet);
       string valueToSet = dict["value"];
 
-      
-      object parameter = FindProperty(Problem.Parameters, "Problem", path);
-      if (parameter == null)
-        parameter = FindProperty(Algorithm.Parameters, "Algorithm", path);
+
+      object property = FindProperty(Problem.Parameters, "Problem", path);
+      if (property == null)
+        property = FindProperty(Algorithm.Parameters, "Algorithm", path);
 
       //var newProperty = Activator.CreateInstance(propertyType, valueToSet);
 
@@ -136,14 +168,50 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       bool isFixedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(FixedValueParameter<>), propertyType);
 
       if (isValueParameter) {
-        var valueTypeSetter = parameter.GetType().GetMethod("set_Value", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        // we have to distinct between 'values' like BoolValue and between Interface values
+        var genericTypeArgument = property.GetType().GetGenericArguments().FirstOrDefault();
+        bool isGenericTypeArgumentInterface = genericTypeArgument.IsInterface;
+        var valueTypeSetter = property.GetType().GetMethod("set_Value", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        // INTERFACE begin
+        // need to get possible tyoes from endpoint getPossibleParameterValues before
+        if (isGenericTypeArgumentInterface) {
+          var possibleInstances = ApplicationManager.Manager.GetInstances(genericTypeArgument);
+          var instanceToSet = possibleInstances.Where(x => x.GetType().FullName == valueToSet).FirstOrDefault();
+          valueTypeSetter?.Invoke(property, new object[] { instanceToSet });
 
-        // e.g. BoolValue
-        var genericTypeArgument = parameter.GetType().GetGenericArguments().FirstOrDefault();
-        var typeArgumentInstance = Activator.CreateInstance(genericTypeArgument);
-        typeArgumentInstance.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(typeArgumentInstance, new object[] { valueToSet });
-        valueTypeSetter?.Invoke(parameter, new object[] { typeArgumentInstance });
+          // INTERFACE end
+        } else {
+          // VALUE begin
+          
+          // e.g. BoolValue
+
+          var typeArgumentInstance = Activator.CreateInstance(genericTypeArgument);
+          typeArgumentInstance.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(typeArgumentInstance, new object[] { valueToSet });
+          valueTypeSetter?.Invoke(property, new object[] { typeArgumentInstance });
+          // VALUE END
+        }
       } else if (isConstrainedValueParameter) {
+        // we have to get a enumerator for validValues with reflection, search for the right item by type and then we can assign it
+        var validValuesMethod = property.GetType().GetMethod("get_ValidValues", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        object itemSet = validValuesMethod.Invoke(property, null);
+        var getEnumeratorMethod = itemSet.GetType().GetMethod("GetEnumerator");
+        IEnumerator<object> enumerator = (IEnumerator<object>)getEnumeratorMethod.Invoke(itemSet, null);
+        object current = null;
+        while (enumerator.MoveNext()) {
+          current = enumerator.Current;
+          Type currentType = current.GetType();
+          if (currentType.FullName == valueToSet)
+            break;
+        }
+        if (current.GetType().FullName != valueToSet) {
+          ctx.Response.StatusCode = HttpStatusCode.BadRequest;
+          await ctx.Response.SendResponseAsync($"Could not find type {valueToSet} in ValidValues from {path}.");
+          return;
+        }
+
+        var setMethod = property.GetType().GetMethod("set_Value");
+        setMethod.Invoke(property, new object[] { current });
+        ;
         // todo
       }
 
@@ -151,7 +219,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
 
     }
 
-      public async Task GetParameterValue(IHttpContext ctx) {
+    public async Task GetParameterValue(IHttpContext ctx) {
       var parameterToLookFor = ctx.Request.QueryString["parameter"];
       object parameter = FindProperty(Problem.Parameters, "Problem", parameterToLookFor);
       if (parameter == null)
@@ -165,7 +233,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
 
       // is it safe to assume that every parameter is IValueParameter?
       IValueParameter valueParameter = parameter as IValueParameter;
-      if(valueParameter == null) {
+      if (valueParameter == null) {
         ctx.Response.StatusCode = HttpStatusCode.BadRequest;
         await ctx.Response.SendResponseAsync($"Parameter {parameterToLookFor} is not a IValueParameter. Type: {parameter.GetType().FullName}");
       }
@@ -177,11 +245,10 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       bool isValueValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), valueParameter.Value?.GetType());
       if (isValueValue) {
         // we need to use reflection because we don't know the generic type and therefore can't cast the object
-        var value = valueParameter.Value.GetType().GetProperty(nameof(IValueParameter.Value), 
+        var value = valueParameter.Value.GetType().GetProperty(nameof(IValueParameter.Value),
           BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(valueParameter.Value);
-        json.Value = value; 
-      }
-      else
+        json.Value = value;
+      } else
         json.Value = valueParameter.Value;
 
       string serializedJson = JsonSerializer.Serialize(json);
