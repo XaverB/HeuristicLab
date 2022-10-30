@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing.Imaging;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -9,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Grapevine;
+using HeuristicLab.Analysis;
 using HeuristicLab.Core;
 using HeuristicLab.Data;
 using HeuristicLab.Optimization;
@@ -26,7 +28,15 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Problem = problem;
       Algorithm = algorithm;
     }
-
+    
+    /// <summary>
+    /// Searches for a property recursively.
+    /// </summary>
+    /// <param name="rootParameter">Collection which contains the desired property</param>
+    /// <param name="previousPath">The path of the last recursive call.
+    /// Must be "Algorithm" or "Problem" when called the first time</param>
+    /// <param name="desiredProperty">The path to the desired property.</param>
+    /// <returns>The desired property or null if not found.</returns>
     object FindProperty(IKeyedItemCollection<string, IParameter> rootParameter, string previousPath, string desiredProperty) {
       foreach (var parameter in rootParameter) {
         bool isValueParameter2 = parameter.GetType().GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IValueParameter<>));
@@ -86,17 +96,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
           Type genericTypeArgument = null;
           genericTypeArgument = parameter.GetType().GetGenericArguments().FirstOrDefault();
           bool isGenericTypeArgumentInterface = genericTypeArgument?.IsInterface ?? false;
-          if (isGenericTypeArgumentInterface) {
-            var possibleInstances = ApplicationManager.Manager.GetInstances(genericTypeArgument);
-            currentJson.Note = "This parameters generic type argument is a interface. Take a look at PossibleInstances";
-            currentJson.PossibleInstances = possibleInstances.Select(x => x.GetType().FullName);
-            //var genericTypeArgument = property.GetType().GetGenericArguments().FirstOrDefault();
-            //bool isGenericTypeArgumentInterface = genericTypeArgument.IsInterface;
-          }
-
-          // check if the value is a constrainedvalue, so we can deliver possible values
           bool isConstraintValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), parameter.GetType());
-          if(isConstraintValue) {
+          if (isConstraintValue) {
             currentJson.Note = "This parameter is a ConstrainedValueParameter. Take a look at the ValidValues";
 
             var validValuesMethod = parameter.GetType().GetMethod("get_ValidValues", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -108,7 +109,16 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
               validValues.Add(enumerator.Current.GetType().FullName);
             }
             currentJson.ValidValues = validValues;
+          } else if (isGenericTypeArgumentInterface) {
+            var possibleInstances = ApplicationManager.Manager.GetInstances(genericTypeArgument);
+            currentJson.Note = "This parameters generic type argument is a interface. Take a look at PossibleInstances";
+            currentJson.PossibleInstances = possibleInstances.Select(x => x.GetType().FullName);
+            //var genericTypeArgument = property.GetType().GetGenericArguments().FirstOrDefault();
+            //bool isGenericTypeArgumentInterface = genericTypeArgument.IsInterface;
           }
+
+          // check if the value is a constrainedvalue, so we can deliver possible values
+
           // TODO
 
 
@@ -164,6 +174,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       //parameter.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(parameter,
       // fetch method from ValueType. This setter wants a BoolValue for bools and so on
       bool isValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueParameter<>), propertyType);
+      bool isOptionalValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(OptionalValueParameter<>), propertyType);
       bool isConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), propertyType);
       bool isFixedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(FixedValueParameter<>), propertyType);
 
@@ -182,11 +193,30 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
           // INTERFACE end
         } else {
           // VALUE begin
-          
-          // e.g. BoolValue
+
+          // e.g. BoolValue etc
+          // luckily they all(?) have a set method with string parsing
 
           var typeArgumentInstance = Activator.CreateInstance(genericTypeArgument);
-          typeArgumentInstance.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(typeArgumentInstance, new object[] { valueToSet });
+          var setValueMethod = typeArgumentInstance.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+
+
+
+          //bool isStringConvertibleArray = ReflectionUtil.IsSubclassOfRawGeneric(typeof(StringConvertibleArray<>), genericTypeArgument);
+          //if (isStringConvertibleArray && valueToSet.Contains(',')) {
+          //  var newArray = Activator.CreateInstance(genericTypeArgument, new object[] { valueToSet.Split(',').Length });
+          //  int i = 0;
+          //  foreach (var val in valueToSet.Split(',')) {
+          //    var setMethod = newArray.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Instance);
+          //    var methods = newArray.GetType().GetMethods();
+
+          //    setMethod.Invoke(typeArgumentInstance, new object[] { val, i });
+          //    //propertyAsItem = (IItem)newArray;
+          //  }
+          //} else {
+          //  setValueMethod.Invoke(typeArgumentInstance, new object[] { valueToSet });
+          //}
+
           valueTypeSetter?.Invoke(property, new object[] { typeArgumentInstance });
           // VALUE END
         }
@@ -429,20 +459,45 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
 
       int isValueTypeCount = 0;
       int isNotValueTypeCount = 0;
-      foreach (var result in results) {
+      dynamic current = new ExpandoObject();
 
+      foreach (var result in results) {
+        current.Key = result.Key;
         bool isValueType = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), result.Value.GetType());
-        if (!isValueType) {
+        if (result.Value is DataTable dt) {
+          List<dynamic> rows = new List<dynamic>();
+          foreach (var dtRow in dt.Rows) {
+            dynamic row = new ExpandoObject();
+            row.Name = dtRow.Name;
+            row.Values = dtRow.Values;
+            rows.Add(row);
+          }
+          current.DataTable = rows;
+        } else if (!isValueType) {
           isNotValueTypeCount++;
+          // TODO find way to handle solutions
           continue;
+        } else if (isValueType) {
+
+          if (result.Value.GetType().GetMethod("get_Value") != null) {
+            current.Value = result.Value.GetType().GetMethod("get_Value").Invoke(result.Value, null);
+          } else
+            current.Value = result.Value;
+
+          //IDictionary<string, object> map = current;
+          //if(map.ContainsKey("ItemImage"))
+          //  map.Remove("ItemImage");
+          //if (map.ContainsKey("ItemVersion"))
+          //  map.Remove("ItemVersion");
+
         }
         isValueTypeCount++;
-        dynamic current = new ExpandoObject();
-        current.Key = result.Key;
+
+
         current.DataType = result.Value.GetType().FullName;
         current.ItemDescription = result.Value.ItemDescription;
         current.ItemName = result.Value.ItemName;
-        current.Value = result.Value;
+
         prettyResults.Add(current);
       }
 

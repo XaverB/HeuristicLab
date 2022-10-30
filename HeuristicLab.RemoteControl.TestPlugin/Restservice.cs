@@ -13,21 +13,29 @@ using HeuristicLab.RemoteControl.TestPlugin.Host;
 
 namespace HeuristicLab.RemoteControl.TestPlugin {
 
-  [Item("RESTService", "A RESTService.....")]
+  [Item("RESTService", "RESTService to remote control HeuristicLab algorithms")]
   [Creatable(CreatableAttribute.Categories.TestingAndAnalysis, Priority = int.MaxValue)]
-  public class RestService : ParameterizedNamedItem {
-
-    private Host.Host host;
+  public class RestServiceItem : ParameterizedNamedItem {
+    /// <summary>
+    /// The host of the REST - services. This object is used to start and control the rest - service.
+    /// </summary>
+    private RESTServiceHost host;
+    /// <summary>
+    /// Reference to a algorithm, which should be controlled by the REST - service
+    /// </summary>
     public IAlgorithm Algorithm { get; set; }
+    /// <summary>
+    /// The problem associated with the referenced algorithm, which should be controlled by the REST - service
+    /// </summary>
     public IProblem Problem => Algorithm?.Problem;
 
     #region Ctor/Cloner
     [StorableConstructor]
-    private RestService(StorableConstructorFlag _) : base(_) { }
-    private RestService(RestService original, Cloner cloner)
+    private RestServiceItem(StorableConstructorFlag _) : base(_) { }
+    private RestServiceItem(RestServiceItem original, Cloner cloner)
       : base(original, cloner) { }
 
-    public RestService()
+    public RestServiceItem()
       : base() {
 
       var url = new StringValue("http://localhost");
@@ -36,13 +44,14 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       url.ValueChanged += Configuration_ValueChanged;
       port.ValueChanged += Configuration_ValueChanged;
 
-      Parameters.Add(new ValueParameter<StringValue>("Url", "Base url of the RESTService", url));
-      Parameters.Add(new ValueParameter<IntValue>("Port", "Port of the RESTService", port));
-      //ConfigureAndRunHost();
+      Parameters.Add(new ValueParameter<StringValue>("Url", "Base url of the RESTService",
+        new StringValue("http://localhost")));
+      Parameters.Add(new ValueParameter<IntValue>("Port", "Port of the RESTService",
+        new IntValue(1234)));
     }
 
     public override IDeepCloneable Clone(Cloner cloner) {
-      return new RestService(this, cloner);
+      return new RestServiceItem(this, cloner);
     }
     #endregion
 
@@ -73,7 +82,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       var url = ((HeuristicLab.Data.StringValue)urlValue).Value;
       var port = ((HeuristicLab.Data.ValueTypeValue<int>)portValue).Value;
 
-      host = new Host.Host(new HostConfiguration() {
+      host = new Host.RESTServiceHost(new HostConfiguration() {
         Algorithm = Algorithm,
         Url = url,
         Port = port

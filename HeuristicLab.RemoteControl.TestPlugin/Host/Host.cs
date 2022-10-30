@@ -16,7 +16,7 @@ using HeuristicLab.PluginInfrastructure;
 using HeuristicLab.RemoteControl.TestPlugin.Util;
 
 namespace HeuristicLab.RemoteControl.TestPlugin.Host {
-  public class Host {
+  public class RESTServiceHost {
 
     private readonly HostConfiguration hostConfiguration;
     private IRestServer server;
@@ -25,7 +25,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     private string Url => hostConfiguration.UrlWithPort;
     private readonly IRouteBuilder handler;
 
-    public Host(HostConfiguration configuration) {
+    public RESTServiceHost(HostConfiguration configuration) {
       hostConfiguration = configuration;
 
       handler = new RouteBuilder(

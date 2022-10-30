@@ -29,7 +29,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
   }
 
   /// <summary>
-  /// Plugin class for HeuristicLab.Problems.VehicleRouting.Views plugin
+  /// Plugin class for remote controlling HeuristicLab applicaiton Optimizer with a REST - service
   /// </summary>
   [Plugin("HeuristicLab.RemoteControl.TestPlugin", "1.0.0.0")]
   [PluginFile("HeuristicLab.RemoteControl.TestPlugin.dll", PluginFileType.Assembly)]

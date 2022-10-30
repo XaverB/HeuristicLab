@@ -187,6 +187,10 @@
     <Compile Include="Util\ReflectionUtil.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\HeuristicLab.Analysis\3.3\HeuristicLab.Analysis-3.3.csproj">
+      <Project>{887425B4-4348-49ED-A457-B7D2C26DDBF9}</Project>
+      <Name>HeuristicLab.Analysis-3.3</Name>
+    </ProjectReference>
     <ProjectReference Include="..\HeuristicLab.Clients.Access\3.3\HeuristicLab.Clients.Access-3.3.csproj">
       <Project>{494f87f4-0f25-4d33-a382-10cdb2174d48}</Project>
       <Name>HeuristicLab.Clients.Access-3.3</Name>

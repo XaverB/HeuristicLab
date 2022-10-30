@@ -17,15 +17,15 @@ using HeuristicLab.PluginInfrastructure.Manager;
 
 namespace HeuristicLab.RemoteControl.TestPlugin {
   [View("RESTService View")]
-  [Content(typeof(RestService), true)]
+  [Content(typeof(RestServiceItem), true)]
   public partial class RestserviceView : AsynchronousContentView {
 
     private bool algorithmAssociated = false;
-    private RestService RestService => restserviceItemView.Content as RestService;
+    private RestServiceItem RestService => restserviceItemView.Content as RestServiceItem;
 
     public RestserviceView() {
       InitializeComponent();
-      restserviceItemView.Content = new RestService();
+      restserviceItemView.Content = new RestServiceItem();
     }
 
     protected virtual void tabControl_DragEnterOver(object sender, DragEventArgs e) {
@@ -66,7 +66,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin {
       // so the restservice can expose the properties
 
       IAlgorithm castedAlgocopy = (IAlgorithm)algoCopy;
-      (restserviceItemView.Content as RestService).Algorithm = castedAlgocopy;
+      (restserviceItemView.Content as RestServiceItem).Algorithm = castedAlgocopy;
 
       var page = new System.Windows.Forms.TabPage();
       var control = new HeuristicLab.MainForm.WindowsForms.DragOverTabControl();
