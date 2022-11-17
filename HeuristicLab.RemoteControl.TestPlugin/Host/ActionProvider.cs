@@ -28,7 +28,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Problem = problem;
       Algorithm = algorithm;
     }
-    
+
     /// <summary>
     /// Searches for a property recursively.
     /// </summary>
@@ -178,13 +178,13 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       bool isConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), propertyType);
       bool isFixedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(FixedValueParameter<>), propertyType);
 
-      if (isValueParameter) {
+      if (isValueParameter || isOptionalValueParameter) {
         // we have to distinct between 'values' like BoolValue and between Interface values
         var genericTypeArgument = property.GetType().GetGenericArguments().FirstOrDefault();
         bool isGenericTypeArgumentInterface = genericTypeArgument.IsInterface;
         var valueTypeSetter = property.GetType().GetMethod("set_Value", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
         // INTERFACE begin
-        // need to get possible tyoes from endpoint getPossibleParameterValues before
+        // need to get possible types from endpoint getPossibleParameterValues before
         if (isGenericTypeArgumentInterface) {
           var possibleInstances = ApplicationManager.Manager.GetInstances(genericTypeArgument);
           var instanceToSet = possibleInstances.Where(x => x.GetType().FullName == valueToSet).FirstOrDefault();
@@ -200,22 +200,46 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
           var typeArgumentInstance = Activator.CreateInstance(genericTypeArgument);
           var setValueMethod = typeArgumentInstance.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
 
+          bool isValueTypeMatrix = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeMatrix<>), genericTypeArgument);
+          bool isStringConvertibleArray = ReflectionUtil.IsSubclassOfRawGeneric(typeof(StringConvertibleArray<>), genericTypeArgument);
+          if (isStringConvertibleArray && valueToSet.Contains(',')) {
+            var newArray = Activator.CreateInstance(genericTypeArgument, new object[] { valueToSet.Split(',').Length });
+            int i = 0;
+            foreach (var val in valueToSet.Split(',')) {
+              var setMethod = newArray.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Instance);
+              var methods = newArray.GetType().GetMethods();
+
+              string v = val.Replace('[', ' ');
+              v = v.Replace(']', ' ');
+              v = v.Replace('.', ',');
+
+              setMethod.Invoke(newArray, new object[] { v, i++ });
+              //propertyAsItem = (IItem)newArray;
+            }
+            valueTypeSetter?.Invoke(property, new object[] { newArray });
+            await ctx.Response.SendResponseAsync("ok");
+            return;
+          } else if (isValueTypeMatrix) {
+            string matrixString = dict["value"];
+
+            var rows = matrixString.Split('|');
+            var rowCount = rows.Length;
+            var colCount = rows[0].Split(',').Length;
+
+            var newMatrix = Activator.CreateInstance(genericTypeArgument, new object[] { rowCount, colCount });
+
+            for (int i = 0; i < rowCount; i++) {
+              var cols = rows[i].Split(',');
+              for (int j = 0; j < colCount; j++) {
+
+              }
+            }
 
 
-          //bool isStringConvertibleArray = ReflectionUtil.IsSubclassOfRawGeneric(typeof(StringConvertibleArray<>), genericTypeArgument);
-          //if (isStringConvertibleArray && valueToSet.Contains(',')) {
-          //  var newArray = Activator.CreateInstance(genericTypeArgument, new object[] { valueToSet.Split(',').Length });
-          //  int i = 0;
-          //  foreach (var val in valueToSet.Split(',')) {
-          //    var setMethod = newArray.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Instance);
-          //    var methods = newArray.GetType().GetMethods();
-
-          //    setMethod.Invoke(typeArgumentInstance, new object[] { val, i });
-          //    //propertyAsItem = (IItem)newArray;
-          //  }
-          //} else {
-          //  setValueMethod.Invoke(typeArgumentInstance, new object[] { valueToSet });
-          //}
+            ;
+          } else {
+            setValueMethod.Invoke(typeArgumentInstance, new object[] { valueToSet });
+          }
 
           valueTypeSetter?.Invoke(property, new object[] { typeArgumentInstance });
           // VALUE END
@@ -223,6 +247,11 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       } else if (isConstrainedValueParameter) {
         // we have to get a enumerator for validValues with reflection, search for the right item by type and then we can assign it
         var validValuesMethod = property.GetType().GetMethod("get_ValidValues", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        if (validValuesMethod == null) {
+          propertyType.GetProperty("ValidValues").GetValue(property, null);
+          validValuesMethod = propertyType.GetMethod("get_ValidValues", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+          object itemSet2 = validValuesMethod.Invoke(propertyType, null);
+        }
         object itemSet = validValuesMethod.Invoke(property, null);
         var getEnumeratorMethod = itemSet.GetType().GetMethod("GetEnumerator");
         IEnumerator<object> enumerator = (IEnumerator<object>)getEnumeratorMethod.Invoke(itemSet, null);
@@ -292,7 +321,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     /// <summary>
     /// Returns all property paths and their datatype.
     /// </summary>
-    public async Task GetPropertyPaths(IHttpContext ctx) {
+    public async Task GetPropertyMetaData(IHttpContext ctx) {
 
       // Versuch
 
@@ -373,7 +402,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       await ctx.Response.SendResponseAsync(serializedJson);
     }
 
-    public async Task GetPossibleParameterValues(IHttpContext ctx) {
+    public async Task GetPossibleTypes(IHttpContext ctx) {
       // TODO if type implements interface IConstrainedValueParameter use ValidValues for suggestions
 
       var pathParameters = ctx.Request.PathParameters;
@@ -381,8 +410,8 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       var dataTypeString = queryStrings["dataType"];
 
       var type = ReflectionUtil.GetType(dataTypeString);
-      dynamic json = new ExpandoObject();
       var possibleTypes = ApplicationManager.Manager.GetTypes(type);
+      dynamic json = new ExpandoObject();
 
 
       var superInstance = ApplicationManager.Manager.GetInstances(type);
@@ -715,7 +744,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       _ = Algorithm.StartAsync();
 
       ctx.Response.ContentType = CONTENT_TYPE_JSON;
-      ctx.Response.StatusCode = Algorithm.ExecutionState == ExecutionState.Started ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
+      ctx.Response.StatusCode = HttpStatusCode.Ok; //Algorithm.ExecutionState == ExecutionState.Started ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
       await ctx.Response.SendResponseAsync("ok");
     }
 
@@ -731,7 +760,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Algorithm.Stop();
 
       ctx.Response.ContentType = CONTENT_TYPE_JSON;
-      ctx.Response.StatusCode = Algorithm.ExecutionState == ExecutionState.Stopped ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
+      ctx.Response.StatusCode = HttpStatusCode.Ok; //Algorithm.ExecutionState == ExecutionState.Stopped ? HttpStatusCode.Ok : HttpStatusCode.InternalServerError;
       await ctx.Response.SendResponseAsync("ok");
     }
   }

@@ -31,43 +31,29 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       return new Route(actionProvider.GetParameterValue, "Get", "/parameter/value");
     }
 
-    public IRoute BuildProblemParameterRoute() {
-      return new Route(actionProvider.GetProblemParameterAction, "Get", "/getProblemParameter");
+    public IRoute BuildGetPropertyMetaData() {
+      return new Route(actionProvider.GetPropertyMetaData, "Get", "/meta/property");
     }
 
-    public IRoute BuildGetParameterInfoInfoRoute() {
-      return new Route(actionProvider.GetParameterInfoInfo, "Get", "/problem/parameter/info");
+    public IRoute BuildGetPossibleTypes() {
+      return new Route(actionProvider.GetPossibleTypes, "Get", "meta/types");
     }
 
-    public IRoute BuildGetPropertyPaths() {
-      return new Route(actionProvider.GetPropertyPaths, "Get", "/meta/property");
-    }
 
-    public IRoute BuildGetParameterInfosRoute() {
-      return new Route(actionProvider.GetParameterInfos, "Get", "/getParameterInfos");
-    }
 
-    public IRoute BuildGetPossibleParameterValuesRoute() {
-      return new Route(actionProvider.GetPossibleParameterValues, "Get", "/getPossibleParameterValues");
-    }
+    //public IRoute BuildProblemParameterRoute() {
+    //  return new Route(actionProvider.GetProblemParameterAction, "Get", "/getProblemParameter");
+    //}
 
-    public IRoute BuildGetProblemParameterRoute() {
-      // TODO this was just a quic fix so we can compile it
-      // check if this is the right route
-      return new Route(actionProvider.GetProblemParameter, "Get", "/getProblemParameter");
-    }
+    //public IRoute BuildGetParameterInfoInfoRoute() {
+    //  return new Route(actionProvider.GetParameterInfoInfo, "Get", "/problem/parameter/info");
+    //}
 
-    public IRoute BuildGetResultRoute() {
-      return new Route(actionProvider.GetResult, "Get", "/result");
-    } 
+    //public IRoute BuildGetParameterInfosRoute() {
+    //  return new Route(actionProvider.GetParameterInfos, "Get", "/getParameterInfos");
+    //}
 
-    public IRoute BuildPostProblemParameterRoute() {
-      return new Route(actionProvider.PostProblemParameter, "Post", "/setProblemParameter");
-    }
 
-    public IRoute BuildSetProblemParameterRoute() {
-      return new Route(actionProvider.SetProblemParameter, "Post", "/problem/parameter");
-    }
 
     public IRoute BuildGetExecuteStateRoute() {
       return new Route(actionProvider.GetExecutionState, "Get", "/algorithm/executionState");
@@ -86,5 +72,26 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     public IRoute BuildSetExecuteableStopRoute() {
       return new Route(actionProvider.SetExecuteableStop, "Post", "/algorithm/stop");
     }
+
+
+
+
+    //public IRoute BuildGetProblemParameterRoute() {
+    //  // TODO this was just a quic fix so we can compile it
+    //  // check if this is the right route
+    //  return new Route(actionProvider.GetProblemParameter, "Get", "/getProblemParameter");
+    //}
+
+    public IRoute BuildGetResultRoute() {
+      return new Route(actionProvider.GetResult, "Get", "/result");
+    } 
+
+    //public IRoute BuildPostProblemParameterRoute() {
+    //  return new Route(actionProvider.PostProblemParameter, "Post", "/setProblemParameter");
+    //}
+
+    //public IRoute BuildSetProblemParameterRoute() {
+    //  return new Route(actionProvider.SetProblemParameter, "Post", "/problem/parameter");
+    //}
   }
 }
