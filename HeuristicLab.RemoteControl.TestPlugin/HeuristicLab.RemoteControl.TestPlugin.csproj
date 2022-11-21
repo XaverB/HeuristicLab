@@ -184,6 +184,7 @@
       <DependentUpon>RestserviceView.cs</DependentUpon>
     </Compile>
     <Compile Include="TreeNode.cs" />
+    <Compile Include="Util\IndexParser.cs" />
     <Compile Include="Util\ReflectionUtil.cs" />
   </ItemGroup>
   <ItemGroup>

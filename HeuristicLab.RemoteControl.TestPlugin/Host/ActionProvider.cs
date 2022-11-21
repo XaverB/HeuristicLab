@@ -151,7 +151,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       string requestBodyAsString = stream.ReadToEnd();
       var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(requestBodyAsString);
 
-      string path = dict["path"];
+      bool isIndex = IndexParser.TryParseIndex(dict["path"], out string path, out int[] index);
       string typeToSet = dict["datatype"];
       Type propertyType = ReflectionUtil.GetType(typeToSet);
       string valueToSet = dict["value"];
@@ -161,19 +161,33 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       if (property == null)
         property = FindProperty(Algorithm.Parameters, "Algorithm", path);
 
-      //var newProperty = Activator.CreateInstance(propertyType, valueToSet);
 
 
-      //TypeConverter typeConverter = TypeDescriptor.GetConverter(typeToSet);
-      //object propValue = typeConverter.ConvertFromString(valueToSet);
+      //if (isIndex) {
+      //  bool isArray = index.Length == 1;
 
-      // !! alles valueparameter, constrainedvalueparameter mit validvalues, fixedvalueparameter könen vermutlich nicht geädnert werden
+      //  var indexedObject = parameter.GetType().GetMethod("get_Value").Invoke(parameter, null);
+      //  var getMethod = indexedObject.GetType().GetMethod("get_Item", BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
+      //  var indexAsObjectArray = isArray ? new object[] { index[0] } : new object[] { index[0], index[1] };
+
+      //  json.Name = $"{valueParameter.Name}" + (isArray ? $"[{index[0]}]" : $"[{index[0]},{index[1]}]");
+      //  json.Value = getMethod.Invoke(indexedObject, indexAsObjectArray);
+      //]
 
 
-      // for ValueTypeValue:
-      //parameter.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(parameter,
-      // fetch method from ValueType. This setter wants a BoolValue for bools and so on
-      bool isValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueParameter<>), propertyType);
+        //var newProperty = Activator.CreateInstance(propertyType, valueToSet);
+
+
+        //TypeConverter typeConverter = TypeDescriptor.GetConverter(typeToSet);
+        //object propValue = typeConverter.ConvertFromString(valueToSet);
+
+        // !! alles valueparameter, constrainedvalueparameter mit validvalues, fixedvalueparameter könen vermutlich nicht geädnert werden
+
+
+        // for ValueTypeValue:
+        //parameter.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(parameter,
+        // fetch method from ValueType. This setter wants a BoolValue for bools and so on
+        bool isValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueParameter<>), propertyType);
       bool isOptionalValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(OptionalValueParameter<>), propertyType);
       bool isConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), propertyType);
       bool isFixedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(FixedValueParameter<>), propertyType);
@@ -279,47 +293,62 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
     }
 
     public async Task GetParameterValue(IHttpContext ctx) {
-      var parameterToLookFor = ctx.Request.QueryString["parameter"];
-      object parameter = FindProperty(Problem.Parameters, "Problem", parameterToLookFor);
+      var parameterNameWithPossibleIndex = ctx.Request.QueryString["parameter"];
+
+      bool isIndex = IndexParser.TryParseIndex(parameterNameWithPossibleIndex, out string parameterName, out int[] index);
+
+      object parameter = FindProperty(Problem.Parameters, "Problem", parameterName);
       if (parameter == null)
-        parameter = FindProperty(Algorithm.Parameters, "Algorithm", parameterToLookFor);
+        parameter = FindProperty(Algorithm.Parameters, "Algorithm", parameterName);
 
       ctx.Response.ContentType = CONTENT_TYPE_JSON;
       if (parameter == null) {
         ctx.Response.StatusCode = HttpStatusCode.BadRequest;
-        await ctx.Response.SendResponseAsync($"Parameter {parameterToLookFor} could not be found");
+        await ctx.Response.SendResponseAsync($"Parameter {parameterName} could not be found");
       }
 
       // is it safe to assume that every parameter is IValueParameter?
       IValueParameter valueParameter = parameter as IValueParameter;
       if (valueParameter == null) {
         ctx.Response.StatusCode = HttpStatusCode.BadRequest;
-        await ctx.Response.SendResponseAsync($"Parameter {parameterToLookFor} is not a IValueParameter. Type: {parameter.GetType().FullName}");
+        await ctx.Response.SendResponseAsync($"Parameter {parameterName} is not a IValueParameter. Type: {parameter.GetType().FullName}");
+      }
+      dynamic json = new ExpandoObject();
+      
+
+      // user wants single value from index type
+      if (isIndex) {
+        bool isArray = index.Length == 1;
+
+        var indexedObject = parameter.GetType().GetMethod("get_Value").Invoke(parameter, null);
+        var getMethod = indexedObject.GetType().GetMethod("get_Item", BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
+        var indexAsObjectArray = isArray ? new object[] { index[0] } : new object[] { index[0], index[1] };
+
+        json.Name = $"{valueParameter.Name}" + (isArray ? $"[{index[0]}]" : $"[{index[0]},{index[1]}]");
+        json.Value = getMethod.Invoke(indexedObject, indexAsObjectArray);
+
+      } else { // user wants common value
+
+
+        json.Name = valueParameter.Name;
+        // for valuetypevalues we need to fetch their value by accessing the value of the property before..
+        bool isValueValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), valueParameter.Value?.GetType());
+        if (isValueValue) {
+          // we need to use reflection because we don't know the generic type and therefore can't cast the object
+          var value = valueParameter.Value.GetType().GetProperty(nameof(IValueParameter.Value),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(valueParameter.Value);
+          json.Value = value;
+        } else
+          json.Value = valueParameter.Value;
       }
 
-
-      dynamic json = new ExpandoObject();
-      json.Name = valueParameter.Name;
-      // for valuetypevalues we need to fetch their value by accessing the value of the property before..
-      bool isValueValue = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), valueParameter.Value?.GetType());
-      if (isValueValue) {
-        // we need to use reflection because we don't know the generic type and therefore can't cast the object
-        var value = valueParameter.Value.GetType().GetProperty(nameof(IValueParameter.Value),
-          BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(valueParameter.Value);
-        json.Value = value;
-      } else
-        json.Value = valueParameter.Value;
-
       string serializedJson = JsonSerializer.Serialize(json);
-
-
-
-
       await ctx.Response.SendResponseAsync(serializedJson);
+
     }
 
     /// <summary>
-    /// Returns all property paths and their datatype.
+    /// Returns all property paths and their data type.
     /// </summary>
     public async Task GetPropertyMetaData(IHttpContext ctx) {
 
