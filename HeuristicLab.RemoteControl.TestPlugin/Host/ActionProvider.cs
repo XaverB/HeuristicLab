@@ -483,7 +483,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       Dictionary<string, IItem> results = new Dictionary<string, IItem>();
       Algorithm.Results.CollectResultValues(results);
 
-      var resultsFromLastRun = Algorithm.Runs.LastOrDefault().Results;
+      //var resultsFromLastRun = Algorithm.Runs.LastOrDefault().Results;
 
       dynamic json = new ExpandoObject();
       List<dynamic> prettyResults = new List<dynamic>();
@@ -491,7 +491,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
       int isValueTypeCount = 0;
       int isNotValueTypeCount = 0;
 
-      foreach (var result in resultsFromLastRun) {
+      foreach (var result in results) {
         dynamic current = new ExpandoObject();
         current.Key = result.Key;
         bool isValueType = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueTypeValue<>), result.Value.GetType());
