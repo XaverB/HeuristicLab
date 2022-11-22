@@ -163,31 +163,35 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
 
 
 
-      //if (isIndex) {
-      //  bool isArray = index.Length == 1;
+      if (isIndex) {
+        bool isArray = index.Length == 1;
 
-      //  var indexedObject = parameter.GetType().GetMethod("get_Value").Invoke(parameter, null);
-      //  var getMethod = indexedObject.GetType().GetMethod("get_Item", BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
-      //  var indexAsObjectArray = isArray ? new object[] { index[0] } : new object[] { index[0], index[1] };
-
-      //  json.Name = $"{valueParameter.Name}" + (isArray ? $"[{index[0]}]" : $"[{index[0]},{index[1]}]");
-      //  json.Value = getMethod.Invoke(indexedObject, indexAsObjectArray);
-      //]
+        var indexedObject = property.GetType().GetMethod("get_Value").Invoke(property, null);
+        var setMethod = indexedObject.GetType().GetMethod("SetValue", BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty |BindingFlags.NonPublic);
 
 
-        //var newProperty = Activator.CreateInstance(propertyType, valueToSet);
+
+        var indexAsObjectArray = isArray ? new object[] { valueToSet, index[0] } : new object[] { valueToSet ,index[0], index[1] };
+
+        setMethod.Invoke(indexedObject, indexAsObjectArray);
+        await ctx.Response.SendResponseAsync("ok");
+        return;
+      }
 
 
-        //TypeConverter typeConverter = TypeDescriptor.GetConverter(typeToSet);
-        //object propValue = typeConverter.ConvertFromString(valueToSet);
-
-        // !! alles valueparameter, constrainedvalueparameter mit validvalues, fixedvalueparameter könen vermutlich nicht geädnert werden
+      //var newProperty = Activator.CreateInstance(propertyType, valueToSet);
 
 
-        // for ValueTypeValue:
-        //parameter.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(parameter,
-        // fetch method from ValueType. This setter wants a BoolValue for bools and so on
-        bool isValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueParameter<>), propertyType);
+      //TypeConverter typeConverter = TypeDescriptor.GetConverter(typeToSet);
+      //object propValue = typeConverter.ConvertFromString(valueToSet);
+
+      // !! alles valueparameter, constrainedvalueparameter mit validvalues, fixedvalueparameter könen vermutlich nicht geädnert werden
+
+
+      // for ValueTypeValue:
+      //parameter.GetType().GetMethod("SetValue", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(parameter,
+      // fetch method from ValueType. This setter wants a BoolValue for bools and so on
+      bool isValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ValueParameter<>), propertyType);
       bool isOptionalValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(OptionalValueParameter<>), propertyType);
       bool isConstrainedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(ConstrainedValueParameter<>), propertyType);
       bool isFixedValueParameter = ReflectionUtil.IsSubclassOfRawGeneric(typeof(FixedValueParameter<>), propertyType);
@@ -314,7 +318,7 @@ namespace HeuristicLab.RemoteControl.TestPlugin.Host {
         await ctx.Response.SendResponseAsync($"Parameter {parameterName} is not a IValueParameter. Type: {parameter.GetType().FullName}");
       }
       dynamic json = new ExpandoObject();
-      
+
 
       // user wants single value from index type
       if (isIndex) {
